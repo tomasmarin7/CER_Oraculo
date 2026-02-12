@@ -10,27 +10,39 @@ from typing import TYPE_CHECKING
 
 from telegram import Update
 from telegram.constants import ParseMode
-from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
-from ..rag.pipeline import answer as rag_answer
-from .keyboards import get_main_menu_keyboard, get_post_query_keyboard
+from ..config import get_settings
+from ..conversation import (
+    AccionRouter,
+    AlmacenSesionesMemoria,
+    EstadoSesion,
+    RepositorioSesiones,
+    ejecutar_decision,
+    extraer_fuentes_desde_respuesta,
+    registrar_mensaje_asistente,
+    registrar_mensaje_usuario,
+    reiniciar_sesion,
+    renovar_sesion,
+    routear_siguiente_accion,
+)
+from .keyboards import get_main_menu_keyboard
 from .messages import (
     get_database_intro_message,
     get_error_message,
     get_invalid_query_message,
     get_menu_message,
-    get_post_query_message,
     get_processing_message,
     get_research_in_development_message,
     get_welcome_message,
 )
-from .utils import split_message
+from .utils import normalizar_respuesta_para_telegram, split_message
 
 if TYPE_CHECKING:
     from ..config import Settings
 
 logger = logging.getLogger(__name__)
+_almacen_sesiones: RepositorioSesiones = AlmacenSesionesMemoria()
 
 
 # ============================================================================
@@ -40,6 +52,10 @@ logger = logging.getLogger(__name__)
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handler del comando /start - Muestra menú principal"""
+    sesion = _obtener_sesion(update)
+    reiniciar_sesion(sesion)
+    _almacen_sesiones.guardar(sesion)
+
     keyboard = get_main_menu_keyboard()
     message = get_welcome_message()
 
@@ -53,15 +69,16 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     query = update.callback_query
     await query.answer()
 
+    sesion = _obtener_sesion(update)
+    reiniciar_sesion(sesion)
+    _almacen_sesiones.guardar(sesion)
+
     keyboard = get_main_menu_keyboard()
     message = get_menu_message()
 
     await query.edit_message_text(
         message, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN
     )
-
-    # Limpiar estado
-    context.user_data["awaiting_query"] = False
 
 
 # ============================================================================
@@ -88,68 +105,71 @@ async def database_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     query = update.callback_query
     await query.answer()
 
+    sesion = _obtener_sesion(update)
+    sesion.estado = EstadoSesion.ESPERANDO_PREGUNTA
+    renovar_sesion(sesion)
+    _almacen_sesiones.guardar(sesion)
+
     message = get_database_intro_message()
     await query.edit_message_text(text=message, parse_mode=ParseMode.MARKDOWN)
 
-    # Marcar que esperamos una consulta
-    context.user_data["awaiting_query"] = True
-
-
-async def handle_user_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_user_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
-    Procesa la consulta del usuario usando el pipeline RAG existente.
-    
-    Este handler solo adapta Telegram → Pipeline RAG → Telegram.
-    La lógica real está en rag/pipeline.py
+    Procesa mensajes de texto usando estado de sesión + memory router.
     """
     user_question = update.message.text.strip()
+    sesion = _obtener_sesion(update)
 
-    # Validar
+    if sesion.estado == EstadoSesion.MENU:
+        await start_command(update, context)
+        return
+
     if not user_question:
         await update.message.reply_text(
             get_invalid_query_message(), parse_mode=ParseMode.MARKDOWN
         )
         return
 
-    # Mostrar procesamiento
-    processing_msg = await update.message.reply_text(
-        get_processing_message(), parse_mode=ParseMode.MARKDOWN
-    )
+    settings = _resolver_settings(context)
+    registrar_mensaje_usuario(sesion, user_question)
+    decision = routear_siguiente_accion(sesion, user_question, settings)
 
-    try:
-        # ===== USAR PIPELINE RAG EXISTENTE =====
-        # Ejecutar en thread separado para no bloquear el event loop
-        # Así el bot sigue respondiendo a otros usuarios mientras procesa
-        result = await asyncio.to_thread(rag_answer, user_question, 8)
-
-        # Limpiar mensaje de procesamiento
-        await processing_msg.delete()
-
-        # Enviar respuesta (dividida si es necesaria)
-        await _send_telegram_response(update, result)
-
-        # Mostrar opciones
-        keyboard = get_post_query_keyboard()
-        await update.message.reply_text(
-            get_post_query_message(), reply_markup=keyboard
+    processing_msg = None
+    if _requiere_procesamiento(decision.accion):
+        processing_msg = await update.message.reply_text(
+            get_processing_message(), parse_mode=ParseMode.MARKDOWN
         )
 
-        # Limpiar estado
-        context.user_data["awaiting_query"] = False
+    try:
+        result = await asyncio.to_thread(
+            ejecutar_decision, decision, sesion, settings, 8
+        )
+        fuentes = extraer_fuentes_desde_respuesta(result)
+        registrar_mensaje_asistente(
+            sesion,
+            result,
+            fuentes=fuentes,
+            rag_usado=_tag_rag(decision.accion),
+        )
+        _almacen_sesiones.guardar(sesion)
+
+        if processing_msg:
+            await processing_msg.delete()
+
+        await _send_telegram_response(update, result)
 
     except Exception as e:
         logger.error(f"Error en consulta: {e}", exc_info=True)
 
         try:
-            await processing_msg.delete()
+            if processing_msg:
+                await processing_msg.delete()
         except Exception:
             pass
 
         await update.message.reply_text(
             get_error_message(), parse_mode=ParseMode.MARKDOWN
         )
-
-        context.user_data["awaiting_query"] = False
 
 
 # ============================================================================
@@ -165,23 +185,45 @@ async def _send_telegram_response(update: Update, response: str) -> None:
         update: Update de Telegram
         response: Texto a enviar
     """
-    chunks = split_message(response, max_length=4096)
+    texto = normalizar_respuesta_para_telegram(response)
+    chunks = split_message(texto, max_length=4096)
 
     for chunk in chunks:
-        try:
-            await update.message.reply_text(
-                chunk, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True
-            )
-        except BadRequest as exc:
-            # El LLM puede devolver Markdown no válido para Telegram.
-            # Fallback a texto plano para asegurar entrega.
-            logger.warning("Markdown inválido en respuesta, enviando texto plano: %s", exc)
-            await update.message.reply_text(chunk, disable_web_page_preview=True)
+        await update.message.reply_text(chunk, disable_web_page_preview=True)
 
 
 async def default_message_handler(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
-    """Handler por defecto para mensajes sin flujo activo"""
-    if not context.user_data.get("awaiting_query"):
-        await start_command(update, context)
+    """Compatibilidad temporal: delega al nuevo handler de texto."""
+    await handle_user_text(update, context)
+
+
+def _resolver_settings(context: ContextTypes.DEFAULT_TYPE) -> Settings:
+    settings = context.application.bot_data.get("settings")
+    if settings:
+        return settings
+    return get_settings()
+
+
+def _obtener_sesion(update: Update):
+    user_id = str(update.effective_user.id if update.effective_user else "anon")
+    return _almacen_sesiones.obtener_o_crear(user_id)
+
+
+def _requiere_procesamiento(accion: AccionRouter) -> bool:
+    return accion in {
+        AccionRouter.RAG_CER,
+        AccionRouter.RAG_SAG,
+        AccionRouter.RAG_AMBAS,
+    }
+
+
+def _tag_rag(accion: AccionRouter) -> str:
+    if accion == AccionRouter.RAG_CER:
+        return "cer"
+    if accion == AccionRouter.RAG_SAG:
+        return "sag"
+    if accion == AccionRouter.RAG_AMBAS:
+        return "both"
+    return "none"

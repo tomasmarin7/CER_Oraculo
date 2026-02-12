@@ -71,7 +71,7 @@ def get_error_message() -> str:
 
 def get_post_query_message() -> str:
     """Mensaje después de responder una consulta"""
-    return "¿Deseas realizar otra consulta?"
+    return "Puedes seguir preguntando en este chat o volver al menú."
 
 
 def get_generic_error_message() -> str:

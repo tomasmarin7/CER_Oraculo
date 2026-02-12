@@ -46,6 +46,7 @@ class TelegramBot:
             .token(self.settings.telegram_bot_token.get_secret_value())
             .build()
         )
+        application.bot_data["settings"] = self.settings
 
         # ===== COMANDOS =====
         application.add_handler(CommandHandler("start", handlers.start_command))
@@ -79,12 +80,9 @@ class TelegramBot:
     async def _route_text_message(self, update: Update, context) -> None:
         """
         Router para mensajes de texto.
-        Decide si procesar como consulta o mostrar menú.
+        Delega al handler de conversación con memoria.
         """
-        if context.user_data.get("awaiting_query"):
-            await handlers.handle_user_query(update, context)
-        else:
-            await handlers.default_message_handler(update, context)
+        await handlers.handle_user_text(update, context)
 
     async def _error_handler(self, update: Update, context) -> None:
         """Handler global de errores"""
