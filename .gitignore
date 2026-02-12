@@ -1,0 +1,17 @@
+.env
+.venv/
+
+# Python cache/bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Test/cache tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Logs and local IDE config
+*.log
+.idea/
+.vscode/
