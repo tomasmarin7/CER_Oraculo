@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import logging
 import re
+import time
 from pathlib import Path
 
 from google import genai
@@ -12,12 +14,12 @@ REFINE_MODEL_DEFAULT = "gemini-3-flash-preview"
 REFINE_PROMPT_FILE = "refine_question.md"
 MAX_QUERY_WORDS = 60
 MAX_TOKEN_REPETITIONS = 3
+logger = logging.getLogger(__name__)
 
 
 def _load_prompt_template(filename: str) -> str:
-    """Carga template de prompts desde `src/oraculo/prompts/`."""
-    base_dir = Path(__file__).resolve().parents[1]  # .../oraculo
-    prompt_path = base_dir / "prompts" / filename
+    """Carga template de prompts desde `src/oraculo/providers/prompts/`."""
+    prompt_path = Path(__file__).resolve().parent / "prompts" / filename
     if not prompt_path.exists():
         raise FileNotFoundError(f"Prompt no encontrado: {prompt_path}")
     return prompt_path.read_text(encoding="utf-8").strip()
@@ -62,6 +64,7 @@ def refine_user_question(question: str, settings: Settings) -> str:
     Input:  question (str) — pregunta original del usuario
     Output: str — consulta optimizada (texto plano)
     """
+    started = time.perf_counter()
     client = genai.Client(
         api_key=settings.gemini_api_key.get_secret_value(),
         http_options=types.HttpOptions(
@@ -72,6 +75,7 @@ def refine_user_question(question: str, settings: Settings) -> str:
         settings.gemini_refine_model or REFINE_MODEL_DEFAULT
     ).strip() or REFINE_MODEL_DEFAULT
     system = _load_prompt_template(REFINE_PROMPT_FILE)
+    logger.info("🧹 Refiner | enviando consulta para optimizar búsqueda...")
 
     resp = client.models.generate_content(
         model=model_name,
@@ -83,4 +87,11 @@ def refine_user_question(question: str, settings: Settings) -> str:
     )
 
     rewritten = _normalize_refined_query(resp.text or "")
-    return rewritten if rewritten else question.strip()
+    refined = rewritten if rewritten else question.strip()
+    logger.info(
+        "✅ Refiner listo | tiempo=%sms | entrada=%s chars | salida=%s chars",
+        int((time.perf_counter() - started) * 1000),
+        len(question or ""),
+        len(refined),
+    )
+    return refined

@@ -1,0 +1,36 @@
+{
+  "session_id": "7825577976-1771331511",
+  "user_id": "7825577976",
+  "channel": "telegram",
+  "started_at": "2026-02-17T12:31:51+00:00",
+  "ended_at": null,
+  "status": "open",
+  "state": "WAITING_PRODUCT_DETAIL",
+  "last_activity_ts": "2026-02-17T12:32:24+00:00",
+  "expire_at": "2026-02-17T12:47:24+00:00",
+  "turns": [
+    {
+      "ts": "2026-02-17T12:32:11+00:00",
+      "role": "user",
+      "text": "tengo una plaga de pulgones? que hago?"
+    },
+    {
+      "ts": "2026-02-17T12:32:24+00:00",
+      "role": "assistant",
+      "text": "Bueno, en el CER hemos encontrado estos ensayos para pulgones: • Ensayo 1 (Nectarin, 2020-2021): Exirel SE 100 GL • Ensayo 3 (Nogal, 2016-2017): Cormoran EC, Rimon 10 EC • Ensayo 2 (Melón, NA): Imidacloprid (mencionado en manual técnico) ¿Te interesaría más información de alguno de estos ensayos?"
+    }
+  ],
+  "meta": {
+    "last_rag_used": "cer",
+    "last_sources": [],
+    "router_trace": [
+      {
+        "action": "NEW_CER_QUERY",
+        "query": "control de pulgones en cultivo no especificado productos y dosis evaluadas",
+        "rationale": "consulta tecnica nueva de plaga",
+        "ts": 1771331531
+      }
+    ],
+    "close_reason": ""
+  }
+}

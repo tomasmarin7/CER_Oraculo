@@ -1,0 +1,62 @@
+{
+  "session_id": "7825577976-1771255962",
+  "user_id": "7825577976",
+  "channel": "telegram",
+  "started_at": "2026-02-16T15:32:42+00:00",
+  "ended_at": null,
+  "status": "open",
+  "state": "WAITING_PRODUCT_DETAIL",
+  "last_activity_ts": "2026-02-16T15:34:56+00:00",
+  "expire_at": "2026-02-16T15:49:56+00:00",
+  "turns": [
+    {
+      "ts": "2026-02-16T15:32:42+00:00",
+      "role": "user",
+      "text": "hola"
+    },
+    {
+      "ts": "2026-02-16T15:32:42+00:00",
+      "role": "assistant",
+      "text": "*Oráculo Agrónomo CER* Soy un asistente del Centro de Evaluación Rosario (CER). Te ayudo a revisar qué productos hemos ensayado en cultivos y plagas específicas, y a resumirte resultados, dosis y condiciones de ensayo. Cuéntame cuál es tu problema con el cultivo o qué información necesitas."
+    },
+    {
+      "ts": "2026-02-16T15:32:54+00:00",
+      "role": "user",
+      "text": "tengo un problema con unos pulgones"
+    },
+    {
+      "ts": "2026-02-16T15:34:02+00:00",
+      "role": "assistant",
+      "text": "Bueno, en el CER hemos testeado productos para pulgones en los siguientes cultivos: • Nectarín: Exirel SE 100 GL • Nogal: Cormoran EC, Rimon 10 EC ¿Te interesaría más información del ensayo que hicimos a alguno de estos productos?"
+    },
+    {
+      "ts": "2026-02-16T15:34:15+00:00",
+      "role": "user",
+      "text": "me interesa sobre el nectarin"
+    },
+    {
+      "ts": "2026-02-16T15:34:56+00:00",
+      "role": "assistant",
+      "text": "Bueno, en el CER hemos testeado estos productos para mejorar parámetros productivos, color y control de oídio en nectarín: • Stimulate Fruit Sizer • Sprint Color • Guizufre • Bioil-S Pro ¿Te interesaría más información del ensayo que hicimos a alguno de estos productos?"
+    }
+  ],
+  "meta": {
+    "last_rag_used": "cer",
+    "last_sources": [],
+    "router_trace": [
+      {
+        "action": "NEW_CER_QUERY",
+        "query": "control de pulgones productos evaluados ensayos CER",
+        "rationale": "usuario consulta por problema tecnico de plaga pulgones",
+        "ts": 1771255974
+      },
+      {
+        "action": "DETAIL_FROM_LIST",
+        "query": "",
+        "rationale": "usuario selecciona opcion de nectarin ofrecida previamente",
+        "ts": 1771256055
+      }
+    ],
+    "close_reason": ""
+  }
+}

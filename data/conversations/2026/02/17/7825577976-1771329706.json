@@ -1,0 +1,66 @@
+{
+  "session_id": "7825577976-1771329706",
+  "user_id": "7825577976",
+  "channel": "telegram",
+  "started_at": "2026-02-17T12:01:46+00:00",
+  "ended_at": null,
+  "status": "open",
+  "state": "WAITING_PROBLEM",
+  "last_activity_ts": "2026-02-17T12:03:57+00:00",
+  "expire_at": "2026-02-17T12:18:57+00:00",
+  "turns": [
+    {
+      "ts": "2026-02-17T12:01:46+00:00",
+      "role": "user",
+      "text": "hola"
+    },
+    {
+      "ts": "2026-02-17T12:01:46+00:00",
+      "role": "assistant",
+      "text": "*Oráculo Agrónomo CER* Soy un asistente del Centro de Evaluación Rosario (CER). Te ayudo a revisar qué productos hemos ensayado en cultivos y plagas específicas, y a resumirte resultados, dosis y condiciones de ensayo. Cuéntame cuál es tu problema con el cultivo o qué información necesitas."
+    },
+    {
+      "ts": "2026-02-17T12:02:22+00:00",
+      "role": "user",
+      "text": "tengo un problema con pulgones"
+    },
+    {
+      "ts": "2026-02-17T12:02:38+00:00",
+      "role": "assistant",
+      "text": "Bueno, en el CER hemos encontrado estos ensayos para pulgones: • Ensayo 1 (Nectarin, 2020-2021): Exirel SE 100 GL • Ensayo 2 (Nogal, 2016-2017): Cormoran EC, Rimon 10 EC • Ensayo 3 (Melón, NA): Imidacloprid ¿Te interesaría más información de alguno de estos ensayos?"
+    },
+    {
+      "ts": "2026-02-17T12:02:48+00:00",
+      "role": "user",
+      "text": "quiero mas detalles del ensayo 2"
+    },
+    {
+      "ts": "2026-02-17T12:03:12+00:00",
+      "role": "assistant",
+      "text": "Aquí tienes el detalle técnico del ensayo realizado en Nogales para el control de pulgón. ─────── *Informe 2* (Temporada 2016-2017, Nogal, variedad Chandler) *Ubicación del ensayo:* • Comuna: Putaendo • Localidad: Sector El Tártaro • Región: Valparaíso *Objetivo del ensayo:* • Evaluar la eficacia de *Cormoran EC* y *Rimon 10 EC* para el control del pulgón del nogal (*Chromaphis juglandicola*). *Tratamientos evaluados:* • Aplicación: Realizada el 20 de febrero de 2017 mediante nebulizadora, con un mojamiento de 2000 L/ha. • *Cormoran EC:* Se probaron tres dosis: 50, 70 y 100 mL/100 L de agua (equivalentes a 1.0, 1.4 y 2.0 L/ha respectivamente). • *Rimon 10 EC:* Dosis única de 50 mL/100 L de agua (equivalente a 1.0 L/ha). • Comparación: Se usaron estándares comerciales (Acetamiprid y Lambdacialotrina + Clorantraniliprole). *Resultados observados:* • *Cormoran EC:* Fue altamente efectivo. Disminuyó tanto la incidencia (hojas afectadas) como la severidad (pulgones por hoja) a los 7, 14 y 21 días después de la aplicación (DDA). Su desempeño fue estadísticamente igual a los estándares comerciales. • *Rimon 10 EC:* Tuvo un desempeño limitado. No logró reducir la incidencia (porcentaje de hojas con pulgón) respecto al testigo sin aplicación. Aunque bajó la cantidad de pulgones por hoja a los 7 días, para los 14 días la población volvió a subir significativamente. • *Fitotoxicidad:* Ninguno de los productos mostró daños en hojas o frutos (nivel 1 en escala de daño). *Lectura práctica:* • En este ensayo, *Cormoran EC* demostró ser una herramienta robusta para limpiar la plaga y mantener el control por hasta 3 semanas. Por otro lado, *Rimon 10 EC* no mostró ser suficiente para el control de este pulgón bajo las condiciones probadas. ─────── Si necesitas saber cómo se compararon estos resultados con los estándares comerciales (Acetamiprid), puedo detallar esas cifras. ─────────────────────── *Fuentes:* • 2016-2017 - CORMORAN EC Y RIMON 10 EC - Nogal Chandler: https://ceresearch.com/wp-content/uploads/2022/08/Producto_-Cormoran-4a9e43f765fecec21ae7e9fb4d0e125a.pdf"
+    },
+    {
+      "ts": "2026-02-17T12:03:35+00:00",
+      "role": "user",
+      "text": "y ese producto está registrado en el SAG? Permite mas tipos de cultivos?"
+    },
+    {
+      "ts": "2026-02-17T12:03:57+00:00",
+      "role": "assistant",
+      "text": "Sí, **CORMORAN® EC** cuenta con registro SAG vigente y está autorizado para diversos cultivos frutales y hortalizas. Aquí tienes el detalle de sus usos autorizados: 1. **CORMORAN® EC** • **Tipo:** Emulsión Concentrada (EC) • **Cultivo:** Duraznero, Nectarino, Pluot/Plumcot, Ciruelo, Damasco, Cerezo • **Objetivo:** Trips de California (*Frankliniela occidentalis*), Polilla oriental (*Cydia molesta*) • **Dosis reportada:** 50-70 cc/hl (Polilla); 75-87,5 cc/hl (Trips) • **N° Autorización:** 1819 2. **CORMORAN® EC** • **Tipo:** Emulsión Concentrada (EC) • **Cultivo:** Cerezo • **Objetivo:** Mosca de las alas manchadas (*Drosophila suzukii*) • **Dosis reportada:** 75-87,5 cc/hl • **N° Autorización:** 1819 3. **CORMORAN® EC** • **Tipo:** Emulsión Concentrada (EC) • **Cultivo:** Manzanos y Perales • **Objetivo:** Escama de San José (*Diaspidiotus perniciosus*) • **Dosis reportada:** 50 cc/hl (máx 1 L/ha) a 70 cc/hl (máx 1.4 L/ha) • **N° Autorización:** 1819 4. **CORMORAN® EC** • **Tipo:** Emulsión Concentrada (EC) • **Cultivo:** Duraznos y Nectarines • **Objetivo:** Pulgón verde del duraznero (*Myzus persicae*), Escama de San José (*Diaspidiotus perniciosus*) • **Dosis reportada:** 50 cc/hl (Pulgón); 50-70 cc/hl (Escama) • **N° Autorización:** 1819 5. **CORMORAN® EC** • **Tipo:** Emulsión Concentrada (EC) • **Cultivo:** Tomate invernadero • **Objetivo:** Polilla del tomate (*Tuta absoluta*) • **Dosis reportada:** 100 cc/hl • **N° Autorización:** 1819 6. **CORMORAN® EC** • **Tipo:** Emulsión Concentrada (EC) • **Cultivo:** Papa • **Objetivo:** Polilla Minadora (*Tuta absoluta*), Pulgón (*Aphis fabae*) • **Dosis reportada:** 200 cc/ha • **N° Autorización:** 1819"
+    }
+  ],
+  "meta": {
+    "last_rag_used": "sag",
+    "last_sources": [],
+    "router_trace": [
+      {
+        "action": "NEW_CER_QUERY",
+        "query": "control de pulgones en cultivos productos y dosis evaluadas",
+        "rationale": "consulta tecnica nueva de plaga",
+        "ts": 1771329742
+      }
+    ],
+    "close_reason": ""
+  }
+}

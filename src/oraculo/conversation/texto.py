@@ -14,7 +14,7 @@ def limpiar_texto(texto: str) -> str:
     return re.sub(r"\s+", " ", (texto or "").strip())
 
 
-def historial_corto(sesion: SesionChat, max_items: int = 6) -> str:
+def historial_corto(sesion: SesionChat, max_items: int = 10) -> str:
     if not sesion.mensajes:
         return "(vacio)"
     lineas = [f"{m.rol}: {m.texto}" for m in sesion.mensajes[-max_items:]]
@@ -31,9 +31,3 @@ def ultimo_mensaje_usuario(sesion: SesionChat) -> str:
         if msg.rol == "user":
             return msg.texto
     return ""
-
-
-def extraer_fuentes_desde_respuesta(respuesta: str) -> list[str]:
-    if not respuesta:
-        return []
-    return [linea.strip() for linea in respuesta.splitlines() if "[ceresearch:" in linea]

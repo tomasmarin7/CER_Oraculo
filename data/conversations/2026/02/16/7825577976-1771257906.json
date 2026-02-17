@@ -1,0 +1,86 @@
+{
+  "session_id": "7825577976-1771257906",
+  "user_id": "7825577976",
+  "channel": "telegram",
+  "started_at": "2026-02-16T16:05:06+00:00",
+  "ended_at": null,
+  "status": "open",
+  "state": "WAITING_PRODUCT_DETAIL",
+  "last_activity_ts": "2026-02-16T16:09:01+00:00",
+  "expire_at": "2026-02-16T16:24:01+00:00",
+  "turns": [
+    {
+      "ts": "2026-02-16T16:05:06+00:00",
+      "role": "user",
+      "text": "hola"
+    },
+    {
+      "ts": "2026-02-16T16:05:06+00:00",
+      "role": "assistant",
+      "text": "*Oráculo Agrónomo CER* Soy un asistente del Centro de Evaluación Rosario (CER). Te ayudo a revisar qué productos hemos ensayado en cultivos y plagas específicas, y a resumirte resultados, dosis y condiciones de ensayo. Cuéntame cuál es tu problema con el cultivo o qué información necesitas."
+    },
+    {
+      "ts": "2026-02-16T16:05:17+00:00",
+      "role": "user",
+      "text": "tengo un problema con pulgones"
+    },
+    {
+      "ts": "2026-02-16T16:05:28+00:00",
+      "role": "assistant",
+      "text": "Bueno, en el CER hemos encontrado estos ensayos para pulgones: • Ensayo 1 (Melón, NA): Imidacloprid • Ensayo 2 (Nectarin, 2020-2021): Exirel SE 100 GL • Ensayo 3 (Nogal, 2016-2017): Cormoran EC, Rimon 10 EC ¿Te interesaría más información de alguno de estos ensayos?"
+    },
+    {
+      "ts": "2026-02-16T16:06:36+00:00",
+      "role": "user",
+      "text": "Me interesa saber mas de exirel"
+    },
+    {
+      "ts": "2026-02-16T16:06:59+00:00",
+      "role": "assistant",
+      "text": "Aquí tienes el detalle técnico del ensayo específico con Exirel realizado por el CER: ─────── *Informe: Exirel SE 100 GL en Nectarin* (Temporada 2020-2021, var. Arctic Star) *Ubicación del ensayo:* • Comuna: Requinoa • Región: O'Higgins • Situación: Huerto plantado en 2018, conducción en Eje en V. *Objetivo del ensayo:* • Evaluar la eficacia de Exirel SE 100 GL para el control de **Pulgón verde del duraznero** (*Myzus persicae*) en brotes. *Tratamiento evaluado:* • **Producto:** Exirel SE 100 GL. • **Dosis evaluadas:** Se probaron concentraciones de 75, 100, 125 y 150 mL/hL. • **Aplicación:** Una única aplicación (8 de octubre) con un mojamiento de **1.500 L/ha**. • **Comparación:** Se comparó contra un testigo sin aplicación y estándares comerciales (Sulfoxaflor y Tiacloprid). *Resultados observados:* • **Eficacia general:** Todas las dosis redujeron significativamente la población de pulgones respecto al testigo. • **Dosis baja (75 mL/hL):** Logró un control inferior a las dosis más altas y a los estándares comerciales. • **Dosis media (100 mL/hL):** Tuvo un desempeño menor que el estándar Sulfoxaflor a los 7 días, pero similar a Tiacloprid. • **Mejor desempeño:** Las dosis de **125 y 150 mL/hL** fueron las más efectivas, logrando un control estadísticamente igual a los mejores estándares del mercado (Sulfoxaflor y Tiacloprid). • **Fitotoxicidad:** No se registraron daños en el cultivo. *Lectura práctica:* • Para lograr un control de choque equivalente a las herramientas químicas tradicionales contra pulgón en carozos, se recomienda utilizar las concentraciones de **125 a 150 cc/100L**. Dosis menores (75-100 cc/100L) podrían resultar insuficientes bajo alta presión. ─────── ¿Te sirve este rango de dosis o necesitas revisar los otros productos (Imidacloprid o Cormoran)? ─────────────────────── *Fuentes:* • 2020-2021 - EXIREL SE 100 GL - Nectarín Artic star: https://ceresearch.com/wp-content/uploads/2022/08/Producto_-Exirel-SE-100-GL-363ddded2cfed9c4614f0a6f9c555ccc.pdf"
+    },
+    {
+      "ts": "2026-02-16T16:07:41+00:00",
+      "role": "user",
+      "text": "cual seria la mejor dosis para aplicarle a mi cultivo?"
+    },
+    {
+      "ts": "2026-02-16T16:07:48+00:00",
+      "role": "assistant",
+      "text": "Basado en el informe de **Exirel SE 100 GL en Nectarín (2020-2021)**, la recomendación técnica derivada de los resultados es: * **Mejor dosis:** El rango de **125 a 150 cc/100L** (mL/hL) mostró el mejor desempeño. * **Por qué:** Estas concentraciones lograron un control estadísticamente igual a los estándares comerciales (Sulfoxaflor y Tiacloprid), superando a las dosis más bajas (75 y 100 cc/100L) que resultaron menos efectivas o más lentas en su acción. * **Aplicación:** Se evaluó en una única aplicación (8 de octubre) con un mojamiento de **1.500 L/ha**. ¿Te gustaría saber cómo se comparó este resultado con los otros productos mencionados (Imidacloprid o Cormoran)?"
+    },
+    {
+      "ts": "2026-02-16T16:08:16+00:00",
+      "role": "user",
+      "text": "En que region se hizo el ensayo?"
+    },
+    {
+      "ts": "2026-02-16T16:08:22+00:00",
+      "role": "assistant",
+      "text": "El ensayo se realizó en la **Región de O'Higgins**, específicamente en la comuna de **Requínoa**. ¿Te interesa conocer algún otro detalle sobre las condiciones del huerto, como la variedad o el sistema de riego?"
+    },
+    {
+      "ts": "2026-02-16T16:08:51+00:00",
+      "role": "user",
+      "text": "me puedes dar mas informacion del ensayo 1?"
+    },
+    {
+      "ts": "2026-02-16T16:09:01+00:00",
+      "role": "assistant",
+      "text": "Aquí tienes el detalle técnico del **Ensayo 1** sobre Melón. ─────── *Informe 1* (Temporada no especificada, Melón, variedades Jabalón y Sisapo) *Ubicación del ensayo:* • Comuna: Coltauco (según contexto de localidad) • Región: O'Higgins • Ubicación reportada: Parcelas demostrativas en huertos comerciales de la región. *Objetivo del ensayo:* • Evaluar y validar variedades de melón Piel de Sapo (Jabalón y Sisapo) con potencial de exportación bajo un manejo de \"cero residuo\", generando un manual técnico para productores. *Tratamiento evaluado (Control de Pulgón):* • Producto: **Imidacloprid** • Dosis: 50 cc/100 L (según tabla de insectos del manual). • Aplicación: Se menciona en el contexto de un programa fitosanitario general para la plaga \"Pulgón\". • Periodo de carencia: 3 días. • Periodo de reingreso: 2 horas. *Resultados observados:* • El informe es un manual de transferencia tecnológica más que un ensayo de eficacia comparativa de productos. • Se establece que el manejo de plagas (incluyendo pulgones) debe integrarse con una fertilización orgánico-mineral para mejorar la resistencia natural de la planta. • Se validó que las variedades Jabalón y Sisapo responden bien a este manejo, logrando calibres de exportación (1.5 a 3.0 kg) y cosecha a partir de los 13°Brix. *Lectura práctica:* • Para pulgones en melón bajo este esquema, la recomendación técnica validada fue Imidacloprid a 50 cc/100 L, respetando una carencia corta de 3 días, lo cual es clave para programas de exportación o \"cero residuo\" al final del ciclo. ─────── ¿Te gustaría conocer el calendario completo de aplicaciones nutricionales que acompañó a este manejo? ─────────────────────── *Fuentes:* • NA - «TRANSFERENCIA DE EVALUACIÓN DE VARIEDADES DE HORTALIZAS EXPORTABLES» - Melón NA: https://ceresearch.com/wp-content/uploads/2022/08/Manual-te╠ucnico-del-Melo╠un-515a2cc3ba624d5f423e4553fc47c47e.pdf • 2020-2021 - EXIREL SE 100 GL - Nectarín Artic star: https://ceresearch.com/wp-content/uploads/2022/08/Producto_-Exirel-SE-100-GL-363ddded2cfed9c4614f0a6f9c555ccc.pdf • 2016-2017 - CORMORAN EC Y RIMON 10 EC - Nogal Chandler: https://ceresearch.com/wp-content/uploads/2022/08/Producto_-Cormoran-4a9e43f765fecec21ae7e9fb4d0e125a.pdf • 2015-2016 - ADMIRAL 10 EC - Vid Cabernet sauvignon: https://ceresearch.com/wp-content/uploads/2022/08/Ensayo-Valent-a8d30534e39f25912843a4775bbeb15e.pdf • 2016-2017 - ORIUS 43 SC, CAPTAN 80 WG Y CAPTAN 83 WP - Durazno Pomona: https://ceresearch.com/wp-content/uploads/2022/08/Producto_-Orius-43-SC-2a9059f426ef7204d43fc5e29aba8189.pdf • 2015-2016 - Bioil-S (pro) - Nogal Chandler: https://ceresearch.com/wp-content/uploads/2022/07/Ensayo-AminoChem-e6a1c90afda075dfb634af7b4d6c9243.pdf • 2021-2022 - ESPIRODICLOFEN 240 SC, LAS MEZCLAS DE ESPIRODICLOFEN CON BIFENTRIN 100 EC Y ABAMECTINA - Nogal Chandler: https://ceresearch.com/wp-content/uploads/2023/04/2122105.-INFORME.-AGROSPEC.-ESPIRODICLOFEN-240-SC.-ACARICIDA-TETRANYCHUS-NOGAL-V3-1-1.pdf • 2015-2016 - CORMORAN EC - Nogal Chandler: https://ceresearch.com/wp-content/uploads/2022/09/Ensayo-Adama-7c7cc8f5e954006778be6f7f05f02f0e.pdf"
+    }
+  ],
+  "meta": {
+    "last_rag_used": "cer",
+    "last_sources": [],
+    "router_trace": [
+      {
+        "action": "NEW_CER_QUERY",
+        "query": "control de pulgones en cultivos productos y dosis evaluadas",
+        "rationale": "consulta tecnica nueva de plaga",
+        "ts": 1771257917
+      }
+    ],
+    "close_reason": ""
+  }
+}

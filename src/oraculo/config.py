@@ -32,11 +32,11 @@ class Settings(BaseSettings):
     # ===== GEMINI API =====
     gemini_api_key: SecretStr = Field(validation_alias="GEMINI_API_KEY")
     gemini_model: str = Field(
-        default="gemini-3-pro-preview",
+        default="gemini-2.5-flash",
         validation_alias="GEMINI_MODEL",
     )
     gemini_fallback_model: str = Field(
-        default="gemini-2.5-flash",
+        default="gemini-3-pro-preview",
         validation_alias="GEMINI_FALLBACK_MODEL",
     )
     gemini_refine_model: str = Field(
@@ -59,6 +59,50 @@ class Settings(BaseSettings):
         default=20000,
         validation_alias="GEMINI_REFINE_TIMEOUT_MS",
     )
+    gemini_router_model: str = Field(
+        default="gemini-2.5-flash",
+        validation_alias="GEMINI_ROUTER_MODEL",
+    )
+    gemini_router_fallback_model: str = Field(
+        default="gemini-2.5-flash",
+        validation_alias="GEMINI_ROUTER_FALLBACK_MODEL",
+    )
+    gemini_router_timeout_ms: int = Field(
+        default=15000,
+        validation_alias="GEMINI_ROUTER_TIMEOUT_MS",
+    )
+    gemini_router_max_output_tokens: int = Field(
+        default=400,
+        validation_alias="GEMINI_ROUTER_MAX_OUTPUT_TOKENS",
+    )
+    gemini_router_thinking_budget: int = Field(
+        default=0,
+        validation_alias="GEMINI_ROUTER_THINKING_BUDGET",
+    )
+    gemini_complex_model: str = Field(
+        default="gemini-3-pro-preview",
+        validation_alias="GEMINI_COMPLEX_MODEL",
+    )
+    gemini_complex_fallback_model: str = Field(
+        default="gemini-2.5-flash",
+        validation_alias="GEMINI_COMPLEX_FALLBACK_MODEL",
+    )
+    gemini_complex_timeout_ms: int = Field(
+        default=70000,
+        validation_alias="GEMINI_COMPLEX_TIMEOUT_MS",
+    )
+    gemini_complex_max_output_tokens: int = Field(
+        default=2200,
+        validation_alias="GEMINI_COMPLEX_MAX_OUTPUT_TOKENS",
+    )
+    gemini_complex_thinking_budget: int = Field(
+        default=512,
+        validation_alias="GEMINI_COMPLEX_THINKING_BUDGET",
+    )
+    rag_use_query_refiner: bool = Field(
+        default=True,
+        validation_alias="RAG_USE_QUERY_REFINER",
+    )
 
     # ===== RAG CONTEXTO =====
     rag_top_docs: int = Field(default=8, validation_alias="RAG_TOP_DOCS")
@@ -78,6 +122,12 @@ class Settings(BaseSettings):
 
     # ===== TELEGRAM BOT =====
     telegram_bot_token: SecretStr = Field(validation_alias="TELEGRAM_BOT_TOKEN")
+
+    # ===== EDISON API =====
+    edison_api_key: SecretStr | None = Field(
+        default=None,
+        validation_alias="EDISON_API_KEY",
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -10,18 +10,18 @@ def get_main_menu_keyboard() -> InlineKeyboardMarkup:
     Teclado del menú principal.
     
     Botones:
-    - Generar Investigación (en desarrollo)
-    - Consultar Base de Datos CER
+    - Consulta Ensayos
+    - Investigación Académica
     """
     keyboard = [
         [
             InlineKeyboardButton(
-                "Generar Investigación", callback_data="generate_research"
+                "Consulta Ensayos", callback_data="consult_database"
             )
         ],
         [
             InlineKeyboardButton(
-                "Consultar Base de Datos CER", callback_data="consult_database"
+                "Investigación Académica", callback_data="academic_research"
             )
         ],
     ]

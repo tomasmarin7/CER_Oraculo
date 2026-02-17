@@ -56,7 +56,7 @@ class TelegramBot:
             CallbackQueryHandler(handlers.menu_callback, pattern="^menu$")
         )
         application.add_handler(
-            CallbackQueryHandler(handlers.research_callback, pattern="^generate_research$")
+            CallbackQueryHandler(handlers.research_callback, pattern="^academic_research$")
         )
         application.add_handler(
             CallbackQueryHandler(handlers.database_callback, pattern="^consult_database$")
@@ -104,7 +104,7 @@ class TelegramBot:
         if not self.application:
             self.setup()
 
-        logger.info("🤖 Iniciando bot de Telegram...")
-        logger.info("Presiona Ctrl+C para detener.")
+        logger.info("🚀 Bot de Telegram iniciado.")
+        logger.info("🛑 Presiona Ctrl+C para detener.")
 
         self.application.run_polling(allowed_updates=Update.ALL_TYPES)

@@ -1,8 +1,16 @@
 """
 Configuración de logging para el Oráculo Agrónomo CER.
 """
+import os
 import logging
 import sys
+
+
+def _resolve_level(default_level: int) -> int:
+    raw = (os.getenv("ORACULO_LOG_LEVEL") or "").strip().upper()
+    if not raw:
+        return default_level
+    return getattr(logging, raw, default_level)
 
 
 def setup_logging(level: int = logging.INFO) -> None:
@@ -12,16 +20,16 @@ def setup_logging(level: int = logging.INFO) -> None:
     Args:
         level: Nivel de logging (default: INFO)
     """
+    resolved = _resolve_level(level)
     logging.basicConfig(
-        level=level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-        handlers=[
-            logging.StreamHandler(sys.stdout)
-        ]
+        level=resolved,
+        format="%(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
     )
     
     # Reducir verbosidad de librerías externas
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("telegram").setLevel(logging.WARNING)
+    logging.getLogger("google_genai").setLevel(logging.WARNING)
+    logging.getLogger("google_genai.models").setLevel(logging.WARNING)

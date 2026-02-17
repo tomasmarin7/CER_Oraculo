@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import time
 from typing import Any, Dict, List, Tuple
 
 from ..config import Settings
@@ -7,6 +9,8 @@ from ..providers.embeddings import embed_retrieval_query
 from ..providers.query_refiner import refine_user_question
 from ..vectorstore.qdrant_client import get_qdrant_client
 from ..vectorstore.search import query_top_chunks
+
+logger = logging.getLogger(__name__)
 
 
 def _adapt_query_vector_dim(
@@ -74,8 +78,18 @@ def retrieve(
       - rewritten_query: consulta optimizada (str)
       - hits: lista de hits (1 por documento) ordenados por score
     """
-    # 1) Reescribir la pregunta con Gemini
-    rewritten_query = refine_user_question(question, settings)
+    started = time.perf_counter()
+
+    # 1) Reescribir la pregunta solo si aporta valor; evita una llamada LLM extra
+    # en consultas cortas y directas.
+    if _debe_refinar_consulta(question, settings):
+        rewritten_query = refine_user_question(question, settings)
+    else:
+        rewritten_query = (question or "").strip()
+        logger.info(
+            "RAG CER | Se omite refiner (consulta simple) | entrada=%s chars",
+            len(question or ""),
+        )
 
     # 2) Generar embedding de la consulta optimizada
     query_vector = embed_retrieval_query(rewritten_query, settings)
@@ -88,6 +102,12 @@ def retrieve(
     qdrant = get_qdrant_client(settings)
     # Pedimos más chunks para luego quedarnos con top documentos únicos.
     candidate_k = max(top_k * 4, top_k)
+    logger.info(
+        "📚 Qdrant CER | colección=%s | consultando top_k=%s (candidatos=%s)...",
+        settings.qdrant_collection,
+        top_k,
+        candidate_k,
+    )
     raw_hits = query_top_chunks(
         client=qdrant,
         collection=settings.qdrant_collection,
@@ -95,6 +115,14 @@ def retrieve(
         top_k=candidate_k,
     )
     hits = _select_top_unique_docs(raw_hits, top_k_docs=top_k)
+
+    logger.info(
+        "✅ RAG CER OK | tiempo=%sms | colección=%s | hits=%s | documentos_unicos=%s",
+        int((time.perf_counter() - started) * 1000),
+        settings.qdrant_collection,
+        len(raw_hits),
+        len(hits),
+    )
 
     return rewritten_query, hits
 
@@ -136,6 +164,7 @@ def retrieve_sag(
     """
     Recupera coincidencias relevantes desde la colección SAG.
     """
+    started = time.perf_counter()
     query_vector = embed_retrieval_query(refined_query, settings)
     query_vector = _adapt_query_vector_dim(
         query_vector,
@@ -143,10 +172,36 @@ def retrieve_sag(
     )
     qdrant = get_qdrant_client(settings)
     candidate_k = max(top_k * 3, top_k)
+    logger.info(
+        "📚 Qdrant SAG | colección=%s | consultando top_k=%s (candidatos=%s)...",
+        settings.qdrant_sag_collection,
+        top_k,
+        candidate_k,
+    )
     raw_hits = query_top_chunks(
         client=qdrant,
         collection=settings.qdrant_sag_collection,
         query_vector=query_vector,
         top_k=candidate_k,
     )
-    return _select_top_unique_sag_rows(raw_hits, top_k_rows=top_k)
+    deduped = _select_top_unique_sag_rows(raw_hits, top_k_rows=top_k)
+    logger.info(
+        "✅ RAG SAG OK | tiempo=%sms | colección=%s | hits=%s | filas_unicas=%s",
+        int((time.perf_counter() - started) * 1000),
+        settings.qdrant_sag_collection,
+        len(raw_hits),
+        len(deduped),
+    )
+    return deduped
+
+
+def _debe_refinar_consulta(question: str, settings: Settings) -> bool:
+    if not bool(settings.rag_use_query_refiner):
+        return False
+    text = (question or "").strip()
+    if not text:
+        return False
+    # Consultas muy cortas suelen funcionar bien sin refiner.
+    if len(text) <= 45 and len(text.split()) <= 7:
+        return False
+    return True

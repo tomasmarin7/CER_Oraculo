@@ -164,15 +164,10 @@ def format_sources_from_hits(hits: List[Dict[str, Any]]) -> str:
         description = " - ".join(parts) if parts else "Estudio"
 
         # Formato limpio para Telegram: viñeta + descripción + link
-        if rec.url_estudio:
-            # Priorizar link al estudio completo
-            lines.append(f"• {description}: {rec.url_estudio}")
-        elif rec.url_pdf:
-            # Fallback al PDF si no hay link de estudio
-            lines.append(f"• {description}: {rec.url_pdf}")
-        else:
-            # Si no hay links (raro), no incluir nada
+        chosen_link = rec.url_pdf or rec.url_estudio
+        if not chosen_link:
             continue
+        lines.append(f"• {description}: {chosen_link}")
 
     if not lines:
         return ""
