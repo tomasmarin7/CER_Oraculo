@@ -4,11 +4,13 @@ import logging
 import time
 from typing import Any, Dict, List, Tuple
 
+from qdrant_client import models as qm
+
 from ..config import Settings
 from ..providers.embeddings import embed_retrieval_query
 from ..providers.query_refiner import refine_user_question
 from ..vectorstore.qdrant_client import get_qdrant_client
-from ..vectorstore.search import query_top_chunks
+from ..vectorstore.search import query_top_chunks, scroll_points_by_filter
 
 logger = logging.getLogger(__name__)
 
@@ -166,10 +168,12 @@ def retrieve_sag(
     """
     started = time.perf_counter()
     query_vector = embed_retrieval_query(refined_query, settings)
+    source_dim = len(query_vector)
     query_vector = _adapt_query_vector_dim(
         query_vector,
         int(settings.qdrant_sag_vector_dim),
     )
+    target_dim = len(query_vector)
     qdrant = get_qdrant_client(settings)
     candidate_k = max(top_k * 3, top_k)
     logger.info(
@@ -186,13 +190,204 @@ def retrieve_sag(
     )
     deduped = _select_top_unique_sag_rows(raw_hits, top_k_rows=top_k)
     logger.info(
-        "✅ RAG SAG OK | tiempo=%sms | colección=%s | hits=%s | filas_unicas=%s",
+        "✅ RAG SAG OK | tiempo=%sms | colección=%s | hits=%s | filas_unicas=%s | dim=%s->%s",
         int((time.perf_counter() - started) * 1000),
         settings.qdrant_sag_collection,
         len(raw_hits),
         len(deduped),
+        source_dim,
+        target_dim,
     )
     return deduped
+
+
+def retrieve_sag_rows_for_products(
+    seed_hits: List[Dict[str, Any]],
+    settings: Settings,
+    max_rows_per_filter: int = 120,
+) -> List[Dict[str, Any]]:
+    """
+    Enriquece resultados SAG recuperando todas las filas/chunks asociadas
+    a los productos detectados (por producto_id y autorización SAG).
+    """
+    if not seed_hits:
+        return []
+
+    started = time.perf_counter()
+    qdrant = get_qdrant_client(settings)
+    collection = settings.qdrant_sag_collection
+
+    merged: List[Dict[str, Any]] = []
+    seen_ids: set[str] = set()
+
+    def _add(hit: Dict[str, Any]) -> None:
+        hid = str(hit.get("id") or "")
+        if hid and hid in seen_ids:
+            return
+        if hid:
+            seen_ids.add(hid)
+        merged.append(hit)
+
+    product_ids: set[str] = set()
+    auth_numbers: set[str] = set()
+
+    for hit in seed_hits:
+        _add(hit)
+        payload = hit.get("payload") or {}
+        product_id = str(payload.get("producto_id") or "").strip()
+        auth = str(payload.get("autorizacion_sag_numero_normalizado") or "").strip()
+        if product_id:
+            product_ids.add(product_id)
+        if auth:
+            auth_numbers.add(auth)
+
+    max_product_terms = max(1, min(len(product_ids), 500))
+    max_auth_terms = max(1, min(len(auth_numbers), 500))
+
+    product_filters = [
+        qm.FieldCondition(key="producto_id", match=qm.MatchValue(value=product_id))
+        for product_id in sorted(product_ids)[:max_product_terms]
+    ]
+    if product_filters:
+        points = scroll_points_by_filter(
+            client=qdrant,
+            collection=collection,
+            query_filter=qm.Filter(should=product_filters),
+            limit_per_page=256,
+            max_points=max_rows_per_filter,
+        )
+        for p in points:
+            _add(p)
+
+    auth_filters = [
+        qm.FieldCondition(
+            key="autorizacion_sag_numero_normalizado",
+            match=qm.MatchValue(value=auth),
+        )
+        for auth in sorted(auth_numbers)[:max_auth_terms]
+    ]
+    if auth_filters:
+        points = scroll_points_by_filter(
+            client=qdrant,
+            collection=collection,
+            query_filter=qm.Filter(should=auth_filters),
+            limit_per_page=256,
+            max_points=max_rows_per_filter,
+        )
+        for p in points:
+            _add(p)
+
+    logger.info(
+        "📦 SAG enrich | seed=%s | producto_ids=%s/%s | autorizaciones=%s/%s | filas_totales=%s | tiempo=%sms",
+        len(seed_hits),
+        min(len(product_ids), max_product_terms),
+        len(product_ids),
+        min(len(auth_numbers), max_auth_terms),
+        len(auth_numbers),
+        len(merged),
+        int((time.perf_counter() - started) * 1000),
+    )
+    return merged
+
+
+def retrieve_sag_rows_by_ids(
+    *,
+    settings: Settings,
+    product_ids: set[str] | None = None,
+    auth_numbers: set[str] | None = None,
+    max_rows: int = 2000,
+) -> List[Dict[str, Any]]:
+    """
+    Recupera filas SAG por lista de producto_id y/o autorización SAG.
+    """
+    pids = {str(x).strip() for x in (product_ids or set()) if str(x).strip()}
+    auths = {str(x).strip() for x in (auth_numbers or set()) if str(x).strip()}
+    if not pids and not auths:
+        return []
+
+    started = time.perf_counter()
+    qdrant = get_qdrant_client(settings)
+    collection = settings.qdrant_sag_collection
+
+    merged: List[Dict[str, Any]] = []
+    seen_ids: set[str] = set()
+
+    def _add(hit: Dict[str, Any]) -> None:
+        hid = str(hit.get("id") or "")
+        if hid and hid in seen_ids:
+            return
+        if hid:
+            seen_ids.add(hid)
+        merged.append(hit)
+
+    if pids:
+        pid_filters = [
+            qm.FieldCondition(key="producto_id", match=qm.MatchValue(value=pid))
+            for pid in sorted(pids)[:500]
+        ]
+        points = scroll_points_by_filter(
+            client=qdrant,
+            collection=collection,
+            query_filter=qm.Filter(should=pid_filters),
+            limit_per_page=256,
+            max_points=max_rows,
+        )
+        for p in points:
+            _add(p)
+
+    if auths:
+        auth_filters = [
+            qm.FieldCondition(
+                key="autorizacion_sag_numero_normalizado",
+                match=qm.MatchValue(value=auth),
+            )
+            for auth in sorted(auths)[:500]
+        ]
+        points = scroll_points_by_filter(
+            client=qdrant,
+            collection=collection,
+            query_filter=qm.Filter(should=auth_filters),
+            limit_per_page=256,
+            max_points=max_rows,
+        )
+        for p in points:
+            _add(p)
+
+    logger.info(
+        "📚 Qdrant SAG (ids) | product_ids=%s | auths=%s | rows=%s | tiempo=%sms",
+        len(pids),
+        len(auths),
+        len(merged),
+        int((time.perf_counter() - started) * 1000),
+    )
+    return merged
+
+
+def retrieve_sag_all_rows(
+    settings: Settings,
+    max_rows: int = 25000,
+) -> List[Dict[str, Any]]:
+    """
+    Recupera filas SAG mediante scroll global (sin búsqueda vectorial),
+    útil cuando se necesita recall alto por criterio estructurado
+    (ingrediente/cultivo/objetivo).
+    """
+    started = time.perf_counter()
+    qdrant = get_qdrant_client(settings)
+    rows = scroll_points_by_filter(
+        client=qdrant,
+        collection=settings.qdrant_sag_collection,
+        query_filter=qm.Filter(),
+        limit_per_page=256,
+        max_points=max_rows,
+    )
+    logger.info(
+        "📚 Qdrant SAG (scroll global) | colección=%s | filas=%s | tiempo=%sms",
+        settings.qdrant_sag_collection,
+        len(rows),
+        int((time.perf_counter() - started) * 1000),
+    )
+    return rows
 
 
 def _debe_refinar_consulta(question: str, settings: Settings) -> bool:

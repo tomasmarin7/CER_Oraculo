@@ -88,15 +88,15 @@ class Settings(BaseSettings):
         validation_alias="GEMINI_COMPLEX_FALLBACK_MODEL",
     )
     gemini_complex_timeout_ms: int = Field(
-        default=70000,
+        default=120000,
         validation_alias="GEMINI_COMPLEX_TIMEOUT_MS",
     )
     gemini_complex_max_output_tokens: int = Field(
-        default=2200,
+        default=4096,
         validation_alias="GEMINI_COMPLEX_MAX_OUTPUT_TOKENS",
     )
     gemini_complex_thinking_budget: int = Field(
-        default=512,
+        default=1536,
         validation_alias="GEMINI_COMPLEX_THINKING_BUDGET",
     )
     rag_use_query_refiner: bool = Field(
@@ -119,6 +119,10 @@ class Settings(BaseSettings):
         validation_alias="RAG_MAX_DOC_CHAR_BUDGET",
     )
     rag_sag_top_k: int = Field(default=8, validation_alias="RAG_SAG_TOP_K")
+    sag_excel_path: str = Field(
+        default="SAG - copia.xlsx",
+        validation_alias="SAG_EXCEL_PATH",
+    )
 
     # ===== TELEGRAM BOT =====
     telegram_bot_token: SecretStr = Field(validation_alias="TELEGRAM_BOT_TOKEN")

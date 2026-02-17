@@ -83,3 +83,39 @@ def scroll_doc_points(
             break
 
     return all_points
+
+
+def scroll_points_by_filter(
+    client: QdrantClient,
+    collection: str,
+    query_filter: qm.Filter,
+    limit_per_page: int = 128,
+    max_points: int = 5000,
+    payload_fields: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Scroll genérico para recuperar puntos por filtro en una colección.
+    """
+    with_payload: Any = True if payload_fields is None else payload_fields
+    all_points: List[Dict[str, Any]] = []
+    next_offset = None
+
+    while True:
+        points, next_offset = client.scroll(
+            collection_name=collection,
+            scroll_filter=query_filter,
+            limit=limit_per_page,
+            offset=next_offset,
+            with_payload=with_payload,
+            with_vectors=False,
+        )
+
+        for p in points:
+            all_points.append({"id": p.id, "payload": p.payload or {}})
+
+        if len(all_points) >= max_points:
+            break
+        if next_offset is None or len(points) == 0:
+            break
+
+    return all_points[:max_points]

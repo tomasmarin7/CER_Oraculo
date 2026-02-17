@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from typing import List
 
@@ -74,6 +75,39 @@ def _extract_text(resp: object) -> str:
     return text
 
 
+def _extract_finish_reasons(resp: object) -> list[str]:
+    reasons: list[str] = []
+    try:
+        candidates = getattr(resp, "candidates", None) or []
+        for candidate in candidates:
+            reason = getattr(candidate, "finish_reason", None)
+            if reason is None:
+                continue
+            value = str(reason).strip()
+            if value:
+                reasons.append(value.upper())
+    except Exception:
+        return []
+    return reasons
+
+
+def _is_truncated_response(text: str, finish_reasons: list[str]) -> bool:
+    truncated_markers = (
+        "MAX_TOKENS",
+        "FINISH_REASON_MAX_TOKENS",
+        "TOKEN_LIMIT",
+        "LENGTH",
+    )
+    if any(any(marker in reason for marker in truncated_markers) for reason in finish_reasons):
+        return True
+
+    # Respaldo defensivo: cola claramente inconclusa en respuestas largas.
+    tail = (text or "").rstrip()
+    if len(tail) < 220:
+        return False
+    return bool(re.search(r"[,;:\-\(\[]\s*$", tail))
+
+
 def _profile_params(settings: Settings, profile: str) -> dict[str, int | float]:
     if profile == "router":
         return {
@@ -102,6 +136,7 @@ def generate_answer(
     settings: Settings,
     system_instruction: str = "",
     profile: str = "default",
+    require_complete: bool = False,
 ) -> str:
     started = time.perf_counter()
     params = _profile_params(settings, profile)
@@ -136,41 +171,86 @@ def generate_answer(
             profile,
             len(prompt),
         )
-        try:
-            resp = client.models.generate_content(
-                model=model_name,
-                contents=prompt,
-                config=types.GenerateContentConfig(**config_params),
-            )
-            text = _extract_text(resp)
-            if text:
-                elapsed_ms = int((time.perf_counter() - model_started) * 1000)
-                total_ms = int((time.perf_counter() - started) * 1000)
-                logger.info(
-                    "✅ Gemini respondió | perfil=%s | modelo=%s | tiempo_modelo=%sms | tiempo_total=%sms | salida=%s chars",
+        attempts = 2 if require_complete else 1
+        attempt_prompt = prompt
+        for attempt in range(1, attempts + 1):
+            try:
+                local_config_params = dict(config_params)
+                if require_complete and attempt > 1:
+                    local_config_params["max_output_tokens"] = int(
+                        max(int(params["max_output_tokens"]) * 1.6, int(params["max_output_tokens"]) + 512)
+                    )
+                resp = client.models.generate_content(
+                    model=model_name,
+                    contents=attempt_prompt,
+                    config=types.GenerateContentConfig(**local_config_params),
+                )
+                text = _extract_text(resp)
+                finish_reasons = _extract_finish_reasons(resp)
+                if text:
+                    if require_complete and _is_truncated_response(text, finish_reasons):
+                        logger.warning(
+                            "⚠️ Gemini respondió truncado | perfil=%s | modelo=%s | intento=%s/%s | finish=%s | salida=%s chars",
+                            profile,
+                            model_name,
+                            attempt,
+                            attempts,
+                            ",".join(finish_reasons) or "-",
+                            len(text),
+                        )
+                        if attempt < attempts:
+                            attempt_prompt = (
+                                f"{prompt}\n\n"
+                                "[INSTRUCCION CRITICA]\n"
+                                "Tu respuesta anterior quedo truncada. "
+                                "Reescribe la respuesta COMPLETA de una sola vez, "
+                                "sin dejar frases ni listas incompletas."
+                            )
+                            continue
+                        errors.append(
+                            f"{model_name}: truncada ({','.join(finish_reasons) or 'sin_finish_reason'})"
+                        )
+                        logger.warning(
+                            "⚠️ Gemini sigue truncando salida tras %s intentos | perfil=%s | modelo=%s",
+                            attempts,
+                            profile,
+                            model_name,
+                        )
+                        break
+                    elapsed_ms = int((time.perf_counter() - model_started) * 1000)
+                    total_ms = int((time.perf_counter() - started) * 1000)
+                    logger.info(
+                        "✅ Gemini respondió | perfil=%s | modelo=%s | intento=%s/%s | finish=%s | tiempo_modelo=%sms | tiempo_total=%sms | salida=%s chars",
+                        profile,
+                        model_name,
+                        attempt,
+                        attempts,
+                        ",".join(finish_reasons) or "-",
+                        elapsed_ms,
+                        total_ms,
+                        len(text),
+                    )
+                    return text
+                errors.append(f"{model_name}: respuesta vacia")
+                logger.warning(
+                    "⚠️ Gemini devolvió vacío | perfil=%s | modelo=%s | intento=%s/%s | tiempo=%sms",
                     profile,
                     model_name,
-                    elapsed_ms,
-                    total_ms,
-                    len(text),
+                    attempt,
+                    attempts,
+                    int((time.perf_counter() - model_started) * 1000),
                 )
-                return text
-            errors.append(f"{model_name}: respuesta vacia")
-            logger.warning(
-                "⚠️ Gemini devolvió vacío | perfil=%s | modelo=%s | tiempo=%sms",
-                profile,
-                model_name,
-                int((time.perf_counter() - model_started) * 1000),
-            )
-        except Exception as exc:
-            errors.append(f"{model_name}: {type(exc).__name__}: {exc}")
-            logger.warning(
-                "❌ Error en Gemini | perfil=%s | modelo=%s | tiempo=%sms | error=%s",
-                profile,
-                model_name,
-                int((time.perf_counter() - model_started) * 1000),
-                type(exc).__name__,
-            )
+            except Exception as exc:
+                errors.append(f"{model_name}: {type(exc).__name__}: {exc}")
+                logger.warning(
+                    "❌ Error en Gemini | perfil=%s | modelo=%s | intento=%s/%s | tiempo=%sms | error=%s",
+                    profile,
+                    model_name,
+                    attempt,
+                    attempts,
+                    int((time.perf_counter() - model_started) * 1000),
+                    type(exc).__name__,
+                )
 
     raise RuntimeError(
         "No se pudo generar respuesta con los modelos configurados. "

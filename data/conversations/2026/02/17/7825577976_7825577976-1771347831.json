@@ -1,0 +1,41 @@
+{
+  "session_id": "7825577976_7825577976-1771347831",
+  "user_id": "7825577976:7825577976",
+  "channel": "telegram",
+  "started_at": "2026-02-17T17:03:51+00:00",
+  "ended_at": null,
+  "status": "open",
+  "state": "WAITING_PROBLEM",
+  "last_activity_ts": "2026-02-17T17:04:25+00:00",
+  "expire_at": "2026-02-17T17:19:25+00:00",
+  "turns": [
+    {
+      "ts": "2026-02-17T17:04:03+00:00",
+      "role": "user",
+      "text": "que productos sirven para tratar el pulgon?"
+    },
+    {
+      "ts": "2026-02-17T17:04:16+00:00",
+      "role": "assistant",
+      "text": "Para responder su consulta sobre el control de pulgón, necesito aclarar la fuente de información que desea consultar. ¿Le interesa conocer los resultados de **ensayos de eficacia realizados por el CER** para este problema o prefiere buscar en el listado oficial de **productos registrados en el SAG**?"
+    },
+    {
+      "ts": "2026-02-17T17:04:25+00:00",
+      "role": "user",
+      "text": "Me gustaria que me digas que productos del sag tratan el pulgon"
+    }
+  ],
+  "meta": {
+    "last_rag_used": "none",
+    "last_sources": [],
+    "router_trace": [
+      {
+        "action": "CLARIFY",
+        "query": "",
+        "rationale": "falta definir si consulta CER o SAG",
+        "ts": 1771347843
+      }
+    ],
+    "close_reason": ""
+  }
+}

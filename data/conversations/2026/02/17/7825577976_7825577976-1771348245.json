@@ -1,0 +1,68 @@
+{
+  "session_id": "7825577976_7825577976-1771348245",
+  "user_id": "7825577976:7825577976",
+  "channel": "telegram",
+  "started_at": "2026-02-17T17:10:45+00:00",
+  "ended_at": null,
+  "status": "open",
+  "state": "WAITING_PROBLEM",
+  "last_activity_ts": "2026-02-17T17:15:45+00:00",
+  "expire_at": "2026-02-17T17:30:45+00:00",
+  "turns": [
+    {
+      "ts": "2026-02-17T17:10:56+00:00",
+      "role": "user",
+      "text": "que productos del sag dicen tratar pulgones?"
+    },
+    {
+      "ts": "2026-02-17T17:12:56+00:00",
+      "role": "assistant",
+      "text": "**Productos registrados SAG relacionados con control de pulgones** Debido a la gran cantidad de resultados encontrados en el contexto (>25), se presenta el listado en formato compacto indicando: **[N° Autorización] Nombre Comercial (Ingrediente Activo principal reportado)**. 1. **[1709] ABSOLUTO® 35 % SC** (Imidacloprid) 2. **[1837] ACECLAN 70 WP** (Acetamiprid) 3. **[1436] ALFAMAX 10 EC®** (Alfacipermetrina) 4. **[1774] AMPLIGO® 150 ZC** (Clorantraniliprol) 5. **[1958] BALAZO DUO** (Acetamiprid) 6. **[1738] BAMAKO®** (Imidacloprid) 7. **[1727] Bull®** (Gamma - Cihalotrina) 8. **[1446] CARTAP 50% WP** (Monoclorhidrato de Cartap) 9. **[1795] CENTRIC® 75 SG** (Tiametoxam) 10. **[1762] CHESS®** (Pimetrozina) 11. **[1676] CHESS® 50 WG** (Pimetrozina) 12. **[2530] CHLORPYRIFOS 50 WP** (Clorpirifos) 13. **[1662] Confidor Forte 200 SL** (Imidacloprid) 14. **[1455] Confidor® 350 SC** (Imidacloprid) 15. **[1845] Connect® 112,5 SC** (Beta-ciflutrina) 16. **[1752] COURAZE® SC** (Imidacloprid) 17. **[1677] CRUISER® 350 FS** (Tiametoxam) 18. **[1773] CRUISER® 600 FS SEMILLERO** (Tiametoxam) 19. **[1705] Danitol® 10 EC** (Fenpropatrina) 20. **[1096] DIAZOL 40 WP** (Diazinon) 21. **[1591] DIAZOL® 50 EW** (Diazinon) 22. **[1809] ETANIS® 50 EW** (Diazinon) 23. **[1800] EXCELTO®** (Teflutrina) 24. **[1411] Fastac® 100 EC** (Alfa-cipermetrina) 25. **[1614] Gaucho® 600 FS** (Imidacloprid) 26. **[1731] GEMINIS® 35 WP** (Imidacloprid) 27. **[1274] Halmark® 75 EC** (Fenvalerato) 28. **[1896] IMAXI®** (Imidacloprid) 29. **[1692] IMAXI® 350 SC** (Imidacloprid) 30. **[1740] IMIDACLOPRID 350 SC** (Imidacloprid) 31. **[1806] IMIDACLOPRID 70 WS AGROSPEC** (Imidacloprid) 32. **[1735] IMIDACLOPRID 70% WP** (Imidacloprid) 33. **[1923] IMI® 600 FS** (Imidacloprid) 34. **[1833] INVICTO® 50 CS** (Lambda-cihalotrina) 35. **[1770] JANUS 480 FS** (Beta-ciflutrina + Clotianidina) 36. **[1761] KARATE® CON TECNOLOGIA ZEON 050 CS** (Lambda-cihalotrina) 37. **[1693] MageosⓇ** (Alfa-cipermetrina) 38. **[1892] MAINSPRING® FLORA** (Ciantraniliprol) 39. **[1546] MOSPILAN®** (Acetamiprid) 40. **[1776] Movento® 100 SC** (Espirotetramato) 41. **[1725] Muralla® Delta 190 OD** (Deltametrina) 42. **[1650] NATURALIS® L** (Beauveria bassiana) 43. **[16030] NEEM - X** (Azadiractina) 44. **[1714] NUPRID®** (Imidacloprid) 45. **[1828] ORBITA® SC** (Lambda-cihalotrina) 46. **[1072] ORTHENE® 75 SP** (Acefato) 47. **[1075] Perfekthion** (Dimetoato) 48. **[1004] PIRIMOR®** (Pirimicarb) 49. **[1875] PREDECTOR 125 SC** (Beta-ciflutrina) 50. **[1781] PROSEED®700 WS** (Imidacloprid) 51. **[1695] PROTREAT® 70 WS** (Imidacloprid) 52. **[1559] PUNTO® 70 DS** (Imidacloprid) 53. **[1547] PUNTO® 70 WP** (Imidacloprid) 54. **[1802] PUZZLE® 70% WG** (Imidacloprid) 55. **[1793] PUZZLE® SC** (Imidacloprid) 56. **[1852] QUILATE® 700 WP** (Acetamiprid) 57. **[1917] QUILATE® Plus 45% WP** (Acetamiprid) 58. **[1729] SALUZI®** (Imidacloprid) 59. **[1918] TURBINE®** (Flonicamida) 60. **[2819] VIBRANCE® INTEGRAL** (Difenoconazol) 61. **[1775] VOLIAM FLEXI® 300 SC** (Clorantraniliprol) 62. **[1745] WARRANT** (Imidacloprid) 63. **[1671] ZORO®** (Gamma - Cihalotrina) **Nota:** El SAG no entrega comparaciones de eficacia (\"el mejor producto\"). La elección debe basarse en la rotación de ingredientes activos para evitar resistencia y en las recomendaciones técnicas específicas para su cultivo."
+    },
+    {
+      "ts": "2026-02-17T17:13:43+00:00",
+      "role": "user",
+      "text": "que productos tienen cianamida de los registrados en el sag?"
+    },
+    {
+      "ts": "2026-02-17T17:14:23+00:00",
+      "role": "assistant",
+      "text": "Aquí tienes los productos registrados con **Cianamida Hidrogenada** encontrados en el contexto SAG: **1. CYANAMIDA 50%** • Composición / I.A.: Cianamida Hidrogenada 50% p/v (500 g/L) • Tipo: Concentrado Soluble (SL) • Cultivo: Cerezos, Kiwis, Manzanos, Nogales, Perales, Vides • Objetivo: Romper dormancia, uniformizar floración y mejorar brotación • Dosis reportada: 2 - 5 L/100 L Agua • N° Autorización: 4130 **2. CIANAMIDA 500 SL** • Composición / I.A.: Cianamida hidrogenada 50% (500 g/L) • Tipo: Concentrado Soluble (SL) • Cultivo: Cerezo, Nogal, Vides • Objetivo: Adelantar y uniformar floración/brotación, suplir horas de frío • Dosis reportada: 2 - 5 L/100 L • N° Autorización: 4228 **3. CIANAMIDA HIDROGENADA 50 SL Agrospec** • Composición / I.A.: Cianamida hidrogenada 50% (500 g/L) • Tipo: Concentrado Soluble (SL) • Cultivo: Arándano, Cerezos, Kiwi, Nogales, Vides • Objetivo: Adelantar floración/brotación, uniformar, suplir horas de frío • Dosis reportada: 1,5 - 5 L/100 L agua • N° Autorización: 4228 **4. CYANAMIDA 50** • Composición / I.A.: Cianamida Hidrogenada 50% p/v (500 g/L) • Tipo: Concentrado Soluble (SL) • Cultivo: Arándanos, Mora, Frambuesa, Zarzaparrilla, Grosellas, Cerezos, Ciruelos, Nogales, Kiwi, Manzanos, Parronales, Vides, Perales • Objetivo: Adelantar floración y cosecha, mejorar brotación, uniformar desarrollo vegetativo • Dosis reportada: 1,5 - 5 L/100 L de agua • N° Autorización: 4133 **5. Gro 500™** • Composición / I.A.: Cianamida Hidrogenada 52% p/v (520 g/L) • Tipo: Concentrado soluble (SL) • Cultivo: Arándanos, Cerezos, Ciruelos, Frambuesas, Kiwi, Manzanos, Nogales, Perales, Vides • Objetivo: Adelantar floración/brotación/cosecha, suplir horas de frío, uniformar crecimiento • Dosis reportada: 1,5 - 5 L/100 L agua • N° Autorización: 4184 **6. Dormex** • Composición / I.A.: Cianamida Hidrogenada 52% p/v (520 g/L) • Tipo: SL • Cultivo: Arándanos, Frambuesas, Cerezos, Ciruelos, Nogales, Perales, Vides • Objetivo: Adelantar floración/brotación/cosecha, suplir horas de frío, uniformar crecimiento • Dosis reportada: 1,5 - 5 L/100 L agua • N° Autorización: 4006 **7. NEXUS® 50 SL** • Composición / I.A.: CIANAMIDA HIDROGENADA 50% p/v • Tipo: CONCENTRADO SOLUBLE (SL) • Cultivo: Arándanos, Frambuesa, Mora, Zarzaparrilla, Grosellas, Cerezos, Kiwi, Nogales, Perales, Manzanos, Vides • Objetivo: Adelantar brotación/cosecha/floración, suplir horas de frío, uniformar crecimiento • Dosis reportada: 1,5 - 5,0 L/100 L de agua • N° Autorización: 4186"
+    },
+    {
+      "ts": "2026-02-17T17:15:06+00:00",
+      "role": "user",
+      "text": "que productos contienen diuron"
+    },
+    {
+      "ts": "2026-02-17T17:15:45+00:00",
+      "role": "assistant",
+      "text": "📋 Productos registrados con ingrediente activo Diurón: 1. DIURON 80% WP • Composición / I.A.: Diurón 80% p/p • Tipo: Polvo mojable (WP) • Cultivo: Alcachofa, Alfalfa, Frutales (Almendro, cerezo, kiwi, palto, cítricos, pomáceas, nogal, etc.), Espárrago, Cereales (Trigo, cebada, avena), Viñas y parronales, Sitios eriazos. • Objetivo: Malezas de hoja ancha y gramíneas (Quingüilla, bledo, verdolaga, pata de gallina, hualcacho, etc.). • Dosis reportada: 0,8 a 30 Kg/ha (varía según cultivo y uso). • N° Autorización: 3495 2. DIUREX® 50% SC • Composición / I.A.: 3-(3,4-diclorofenil)-1,1-dimetilurea (Diurón) • Tipo: Suspensión Concentrada (SC) • Cultivo: Alcachofa, Alfalfa, Cereales, Drenes y Canales, Espárrago, Viñas, Parronales, Frutales (Pomáceas, carozos, nogal, etc.). • Objetivo: Malezas anuales (Yuyo, Rábano, Quinguilla, Bolsita del Pastor, Bledo, Pata de Gallina, Hualcacho, etc.). • Dosis reportada: 1,5 a 30 L/há. • N° Autorización: 3161 3. KARMEX® 80 WG • Composición / I.A.: Diuron 80% p/p • Tipo: Granulado Dispersable (WG) • Cultivo: Alcachofa, Alfalfa, Cítricos, Frutales (Pomáceas, carozos, nogal, palto, kiwi), Espárragos, Gladiolo, Viñedos, Drenes y canales. • Objetivo: Malezas diversas (Cebada, Trigo, Avena voluntaria, Yuyo, Hualcacho, Quingüilla, Bledo, Pata de gallina, etc.). • Dosis reportada: 1 a 20 Kg/ha (según objetivo y cultivo). • N° Autorización: 3477 4. KARMEX® 50% SC • Composición / I.A.: Diurón 50% p/v • Tipo: Suspensión Concentrada (SC) • Cultivo: Alcachofa, Alfalfa, Cereales, Drenes y Canales, Espárrago, Viñas, Parronales, Frutales. • Objetivo: Verdolaga, Ambrosia, Yuyo, Rábano, Quinguilla, Bledo, Pata de Gallina, Hualcacho, etc. • Dosis reportada: 1,5 a 30 L/há. • N° Autorización: 3598 5. KARMEX® XP • Composición / I.A.: Diuron 80% p/p • Tipo: Granulado Dispersable (WG) • Cultivo: Alcachofa, Alfalfa, Festuca, Pasto Ovillo, Cereales, Espárragos, Gladiolo, Frutales (Pomáceas, Cítricos, Nogales). • Objetivo: Malezas anuales (Verdolaga, Ambrosia, Pata de Gallina, Hualcacho, Quingüilla, Bledo, etc.). • Dosis reportada: 1 a 5 Kg/há. • N° Autorización: 3491 6. DAZZLER 50 SC • Composición / I.A.: Diurón 50 % p/v • Tipo: Suspensión Concentrada (SC) • Cultivo: Alcachofa, Alfalfa, Cereales, Empastadas, Espárrago, Viñas, Parronales, Frutales (Pomáceas, Carozos). • Objetivo: Malezas anuales (Ambrosia, Ballica, Bledo, Bolsita del pastor, etc.). • Dosis reportada: 1,6 a 6,4 L/ha. • N° Autorización: 3521 7. DOGMA® 800 WG • Composición / I.A.: Diuron 80% p/p • Tipo: Granulado Dispersable (WG) • Cultivo: Alcachofa, Cereales, Espárragos, Flores, Frutales mayores y menores (Berries), Praderas, Sitios eriazos, Viñas. • Objetivo: Malezas de hoja ancha y hoja angosta. • Dosis reportada: 0,8 a 20 kg/ha. • N° Autorización: 3561 8. USTINEX 80% WP • Composición / I.A.: Diuron 80% p/p • Tipo: Polvo mojable (WP) • Cultivo: Alcachofas, Alfalfa, Espárragos, Huertos frutales, Terrenos no cultivados, Cereales, Viñas. • Objetivo: Malezas de hoja ancha y algunas gramíneas (Quingüilla, bledo, verdolaga, pata de gallina, etc.). • Dosis reportada: 2 a 30 Kg/ha. • N° Autorización: 3060 9. DOGMA 80% WP • Composición / I.A.: Diurón 80% p/p • Tipo: Polvo Mojable (WP) • Cultivo: Alcachofas, Alfalfa, Espárragos, Huertos frutales, Terrenos no cultivados, Cereales, Viñas. • Objetivo: Quingüilla, bledo, verdolaga, pata de gallina, hualcacho, yuyo, rábano, etc. • Dosis reportada: 0,8 a 30 Kg/ha. • N° Autorización: 3523"
+    }
+  ],
+  "meta": {
+    "last_rag_used": "sag",
+    "last_sources": [],
+    "router_trace": [
+      {
+        "action": "ASK_SAG",
+        "query": "productos registrados SAG para pulgones con dosis y autorizacion",
+        "rationale": "usuario pregunta por productos registrados SAG para pulgones",
+        "ts": 1771348256
+      },
+      {
+        "action": "ASK_SAG",
+        "query": "productos registrados SAG con cianamida",
+        "rationale": "usuario pregunta por productos con ingrediente activo específico en SAG",
+        "ts": 1771348423
+      },
+      {
+        "action": "ASK_SAG",
+        "query": "productos registrados SAG que contienen diuron",
+        "rationale": "usuario pregunta por productos con un ingrediente activo específico",
+        "ts": 1771348506
+      }
+    ],
+    "close_reason": ""
+  }
+}

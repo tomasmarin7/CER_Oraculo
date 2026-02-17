@@ -16,9 +16,18 @@ from ..followup import (
     route_guided_followup,
 )
 from ..providers.llm import generate_answer
-from ..providers.query_refiner import refine_user_question
 from ..rag.doc_context import DocContext, build_doc_contexts_from_hits
-from ..rag.retriever import retrieve, retrieve_sag
+from ..rag.retriever import (
+    retrieve,
+    retrieve_sag,
+    retrieve_sag_rows_by_ids,
+    retrieve_sag_rows_for_products,
+)
+from ..sources.sag_excel_lookup import (
+    find_products_by_ingredient,
+    find_products_by_objective,
+    get_product_composition,
+)
 from ..sources.resolver import format_sources_from_hits
 from .modelos import EstadoSesion, SesionChat
 
@@ -60,24 +69,11 @@ def try_handle_guided_flow(
     user_message: str,
     settings: Settings,
     top_k: int = 8,
-    forced_action: str = "",
-    forced_query: str = "",
     progress_callback: Callable[[str], None] | None = None,
 ) -> GuidedFlowResult:
     text = (user_message or "").strip()
     if not text:
         return GuidedFlowResult(handled=False)
-
-    if (forced_action or "").strip().upper() == "ASK_SAG":
-        sesion.estado = EstadoSesion.ESPERANDO_PROBLEMA
-        sag_query = (forced_query or text).strip()
-        return _generate_sag_response(
-            sag_query,
-            settings,
-            user_message=text,
-            product_hint="",
-            progress_callback=progress_callback,
-        )
 
     if sesion.estado == EstadoSesion.ESPERANDO_DETALLE_PRODUCTO:
         return _handle_product_detail_followup(
@@ -111,6 +107,62 @@ def try_handle_guided_flow(
             text,
             settings,
             top_k,
+            progress_callback=progress_callback,
+        )
+
+    return GuidedFlowResult(handled=False)
+
+
+def execute_guided_action_from_router(
+    sesion: SesionChat,
+    user_message: str,
+    settings: Settings,
+    *,
+    action: str,
+    query: str = "",
+    top_k: int = 8,
+    progress_callback: Callable[[str], None] | None = None,
+) -> GuidedFlowResult:
+    action_norm = (action or "").strip().upper()
+    text = (user_message or "").strip()
+    effective_query = (query or text).strip()
+
+    if action_norm == "NEW_CER_QUERY":
+        sesion.estado = EstadoSesion.ESPERANDO_PROBLEMA
+        return _handle_problem_query(
+            sesion,
+            effective_query,
+            settings,
+            top_k,
+            progress_callback=progress_callback,
+        )
+
+    if action_norm == "DETAIL_FROM_LIST":
+        sesion.estado = EstadoSesion.ESPERANDO_DETALLE_PRODUCTO
+        return _handle_product_detail_followup(
+            sesion,
+            text,
+            settings,
+            top_k,
+            progress_callback=progress_callback,
+        )
+
+    if action_norm == "ASK_SAG":
+        sesion.estado = EstadoSesion.ESPERANDO_PROBLEMA
+        return _generate_sag_response(
+            effective_query,
+            settings,
+            user_message=text,
+            product_hint="",
+            progress_callback=progress_callback,
+        )
+
+    if action_norm in {"CHAT_REPLY", "CLARIFY"}:
+        return try_handle_guided_flow(
+            sesion,
+            text,
+            settings,
+            top_k=top_k,
             progress_callback=progress_callback,
         )
 
@@ -286,15 +338,22 @@ def _handle_product_detail_followup(
 
     if decision.action == "CLARIFY":
         sesion.estado = EstadoSesion.ESPERANDO_DETALLE_PRODUCTO
+        clarify_text = (
+            "Para ayudarte mejor, ¿prefieres que:\n"
+            "• investigue en la base de ensayos del CER, o\n"
+            "• busque información en productos registrados en el SAG?\n\n"
+            "Si quieres seguir con los informes ya listados, indícame cuál:\n"
+            f"{render_report_options(offered_reports)}"
+        )
+        if _normalize_text(_last_assistant_message(sesion)) == _normalize_text(clarify_text):
+            clarify_text = (
+                "Quiero asegurarme de entenderte bien antes de continuar.\n"
+                f"Sobre \"{user_message.strip()}\": ¿quieres evidencia de ensayos CER "
+                "o prefieres que revise productos registrados en SAG?"
+            )
         return GuidedFlowResult(
             handled=True,
-            response=(
-                "Para ayudarte mejor, ¿prefieres que:\n"
-                "• investigue en la base de ensayos del CER, o\n"
-                "• busque información en productos registrados en el SAG?\n\n"
-                "Si quieres seguir con los informes ya listados, indícame cuál:\n"
-                f"{render_report_options(offered_reports)}"
-            ),
+            response=clarify_text,
             rag_tag="none",
         )
 
@@ -358,12 +417,118 @@ def _generate_sag_response(
     normalized_query = (query or "").strip()
     if not normalized_query:
         normalized_query = "consulta de productos SAG"
+    effective_user_message = user_message or normalized_query
 
     if progress_callback:
         progress_callback("Consultando registros SAG relacionados...")
-    refined = refine_user_question(normalized_query, settings)
-    sag_hits = retrieve_sag(refined, settings, top_k=max(1, int(settings.rag_sag_top_k)))
-    sag_hits = _filtrar_hits_sag_por_producto(sag_hits, product_hint)
+    combined_query_norm = _normalize_text(f"{normalized_query} {effective_user_message}")
+    ingredient_hint = _extract_ingredient_hint_from_text(combined_query_norm)
+    objective_hint = _extract_objective_hint_from_text(combined_query_norm)
+    base_top_k = max(1, int(settings.rag_sag_top_k))
+    retrieval_top_k = max(base_top_k * 2, 20)
+    if progress_callback:
+        progress_callback("Buscando coincidencias SAG en Qdrant...")
+    seed_hits = retrieve_sag(
+        normalized_query,
+        settings=settings,
+        top_k=retrieval_top_k,
+    )
+    filtered_seed_hits = _filtrar_hits_sag_por_consulta(
+        seed_hits,
+        query_text=normalized_query,
+        user_message=effective_user_message,
+        product_hint=product_hint,
+    )
+    if ingredient_hint:
+        ingredient_seed_hits = _filter_sag_hits_by_field(
+            seed_hits,
+            ingredient_hint,
+            field="ingredient",
+        )
+        if ingredient_seed_hits:
+            # Si detectamos ingrediente en la consulta, priorizamos ese subconjunto
+            # para enriquecer y reducir ruido antes de Gemini.
+            filtered_seed_hits = ingredient_seed_hits
+    filtered_seed_hits = _filtrar_hits_sag_por_producto(filtered_seed_hits, product_hint)
+    seed_for_enrich = filtered_seed_hits or seed_hits
+    sag_hits = retrieve_sag_rows_for_products(
+        seed_for_enrich,
+        settings,
+        max_rows_per_filter=max(base_top_k * 16, 160),
+    )
+    # Boost de recall con Excel para consultas por objetivo/plaga (ej: "pulgon").
+    # Esto evita perder productos por depender solo del top-k semántico inicial.
+    if objective_hint:
+        excel_obj_product_ids, excel_obj_auths = find_products_by_objective(
+            settings.sag_excel_path,
+            objective_hint,
+        )
+        if excel_obj_product_ids or excel_obj_auths:
+            excel_obj_rows = retrieve_sag_rows_by_ids(
+                settings=settings,
+                product_ids=excel_obj_product_ids,
+                auth_numbers=excel_obj_auths,
+                max_rows=max(base_top_k * 220, 4500),
+            )
+            if excel_obj_rows:
+                sag_hits = _merge_hits_by_id(sag_hits, excel_obj_rows)
+                logger.info(
+                    "📎 SAG+Excel | objetivo=%s | product_ids=%s | auths=%s | rows_agregadas=%s | total=%s",
+                    objective_hint,
+                    len(excel_obj_product_ids),
+                    len(excel_obj_auths),
+                    len(excel_obj_rows),
+                    len(sag_hits),
+                )
+    if ingredient_hint:
+        excel_product_ids, excel_auths = find_products_by_ingredient(
+            settings.sag_excel_path,
+            ingredient_hint,
+        )
+        if excel_product_ids or excel_auths:
+            excel_rows = retrieve_sag_rows_by_ids(
+                settings=settings,
+                product_ids=excel_product_ids,
+                auth_numbers=excel_auths,
+                max_rows=max(base_top_k * 24, 240),
+            )
+            if excel_rows:
+                sag_hits = _merge_hits_by_id(sag_hits, excel_rows)
+                logger.info(
+                    "📎 SAG+Excel | ingrediente=%s | product_ids=%s | auths=%s | rows_agregadas=%s | total=%s",
+                    ingredient_hint,
+                    len(excel_product_ids),
+                    len(excel_auths),
+                    len(excel_rows),
+                    len(sag_hits),
+                )
+        ingredient_hits_final = _filter_sag_hits_by_field(
+            sag_hits,
+            ingredient_hint,
+            field="ingredient",
+        )
+        logger.info(
+            "🎯 SAG | post-enrich ingrediente=%s | antes=%s | despues=%s",
+            ingredient_hint,
+            len(sag_hits),
+            len(ingredient_hits_final),
+        )
+        if ingredient_hits_final:
+            sag_hits = ingredient_hits_final
+    if objective_hint and not ingredient_hint:
+        objective_hits_final = _filter_sag_hits_by_field(
+            sag_hits,
+            objective_hint,
+            field="objective",
+        )
+        logger.info(
+            "🎯 SAG | post-enrich objetivo=%s | antes=%s | despues=%s",
+            objective_hint,
+            len(sag_hits),
+            len(objective_hits_final),
+        )
+        if objective_hits_final:
+            sag_hits = objective_hits_final
     if not sag_hits:
         return GuidedFlowResult(
             handled=True,
@@ -371,9 +536,21 @@ def _generate_sag_response(
             rag_tag="sag",
         )
 
-    context_block = _build_sag_context_block(sag_hits[:10])
+    consolidated_count = _count_sag_consolidated_products(sag_hits)
+    compact_context = consolidated_count > 25
+    context_block = (
+        _build_sag_context_block_compact(sag_hits)
+        if compact_context
+        else _build_sag_context_block(sag_hits)
+    )
+    logger.info(
+        "🧱 SAG contexto | productos_consolidados=%s | modo=%s | chars=%s",
+        consolidated_count,
+        "compacto" if compact_context else "detallado",
+        len(context_block),
+    )
     prompt = _build_sag_response_prompt(
-        user_message=user_message or normalized_query,
+        user_message=effective_user_message,
         query=normalized_query,
         product_hint=product_hint,
         context_block=context_block,
@@ -381,11 +558,45 @@ def _generate_sag_response(
     if progress_callback:
         progress_callback("Redactando respuesta con datos SAG...")
     response = (
-        generate_answer(prompt, settings, system_instruction="", profile="complex") or ""
+        generate_answer(
+            prompt,
+            settings,
+            system_instruction="",
+            profile="complex",
+            require_complete=True,
+        )
+        or ""
     ).strip()
     if not response:
-        response = "Encontré coincidencias en SAG, pero no pude estructurar una respuesta clara."
+        # Fallback robusto si el LLM no responde.
+        response = _build_sag_response_from_hits(
+            sag_hits,
+            query_text=normalized_query,
+            user_message=effective_user_message,
+        )
     return GuidedFlowResult(handled=True, response=response, rag_tag="sag")
+
+
+def _merge_hits_by_id(
+    left: list[dict[str, Any]],
+    right: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+
+    def _add(hit: dict[str, Any]) -> None:
+        hid = str(hit.get("id") or "").strip()
+        if hid and hid in seen_ids:
+            return
+        if hid:
+            seen_ids.add(hid)
+        out.append(hit)
+
+    for hit in left:
+        _add(hit)
+    for hit in right:
+        _add(hit)
+    return out
 
 
 def _generate_cer_detail_followup_response(
@@ -456,6 +667,7 @@ def _generate_cer_detail_followup_response(
         settings,
         system_instruction="",
         profile="complex",
+        require_complete=True,
     ).rstrip()
     logger.info("📝 Detalle | respuesta técnica redactada.")
 
@@ -665,18 +877,42 @@ def _generate_first_response_with_context(
         refined_query=refined_query,
         context_block=_build_context_block(doc_contexts),
     )
-    raw = generate_answer(
-        prompt,
-        settings,
-        system_instruction="",
-        profile="complex",
-    )
-    text = (raw or "").strip()
-    if text:
-        return text
+    max_attempts = 3
+    last_text = ""
+    for attempt in range(1, max_attempts + 1):
+        raw = generate_answer(
+            prompt,
+            settings,
+            system_instruction="",
+            profile="complex",
+        )
+        text = (raw or "").strip()
+        if text and _is_complete_first_response(text):
+            if attempt > 1:
+                logger.info(
+                    "✅ Redacción CER completada tras reintento | intento=%s | salida=%s chars",
+                    attempt,
+                    len(text),
+                )
+            return text
+        last_text = text
+        logger.warning(
+            "⚠️ Redacción CER incompleta | intento=%s/%s | salida=%s chars | regenerando...",
+            attempt,
+            max_attempts,
+            len(text),
+        )
+        if attempt < max_attempts and progress_callback:
+            progress_callback("Respuesta parcial detectada; regenerando para enviarte la versión completa...")
+
+    if last_text:
+        logger.warning(
+            "⚠️ Redacción CER sin cierre tras %s intentos | se enviará mensaje de contingencia",
+            max_attempts,
+        )
     return (
-        "No encontré una coincidencia clara en los ensayos CER para tu consulta. "
-        "¿Te gustaría que te dijera cuáles productos del SAG combaten este problema?"
+        "No pude completar la redacción de la respuesta en este intento. "
+        "¿Quieres que lo intente nuevamente?"
     )
 
 
@@ -698,6 +934,22 @@ def _build_first_response_prompt(
         .replace("{{refined_query}}", (refined_query or question).strip())
         .replace("{{context_block}}", context_block)
     ).strip()
+
+
+def _is_complete_first_response(text: str) -> bool:
+    normalized = _normalize_text(text)
+    if not normalized:
+        return False
+    if (
+        "te interesaria mas informacion de alguno de estos ensayos" in normalized
+        or "te gustaria que te dijera cuales productos del sag combaten este problema" in normalized
+    ):
+        return True
+    # Si no incluye cierre esperado y termina en token corto, suele venir truncada.
+    tail = (text or "").strip().split(" ")[-1].strip(".,:;!?()[]{}")
+    if tail.isdigit() and len(tail) <= 4:
+        return False
+    return False
 
 
 def _build_sag_response_prompt(
@@ -1054,6 +1306,7 @@ def _generate_conversational_followup_response(
                 settings,
                 system_instruction="",
                 profile="complex",
+                require_complete=True,
             )
             or ""
         ).strip()
@@ -1117,9 +1370,381 @@ def _filtrar_hits_sag_por_producto(
     return hits
 
 
+def _filtrar_hits_sag_por_consulta(
+    hits: list[dict[str, Any]],
+    *,
+    query_text: str,
+    user_message: str,
+    product_hint: str,
+) -> list[dict[str, Any]]:
+    if not hits:
+        return hits
+    query_norm = _normalize_text(f"{query_text} {user_message}")
+    product_norm = _normalize_text(product_hint)
+
+    ingredient = _extract_ingredient_hint_from_text(query_norm)
+    objective = _extract_objective_hint_from_text(query_norm)
+    cultivo = _extract_crop_hint_from_text(query_norm)
+    generic_token = ""
+    if not ingredient and not objective and not cultivo and not product_norm:
+        tokens = _meaningful_tokens(query_norm)
+        if tokens:
+            generic_token = max(tokens, key=len)
+
+    filtered = hits
+    if ingredient:
+        by_ingredient = _filter_sag_hits_by_field(filtered, ingredient, field="ingredient")
+        logger.info(
+            "🎯 SAG | filtro ingrediente=%s | antes=%s | despues=%s",
+            ingredient,
+            len(filtered),
+            len(by_ingredient),
+        )
+        # No estricto: prioriza hits que sí matchean ingrediente,
+        # pero conserva el resto para que Gemini decida con contexto.
+        if by_ingredient:
+            filtered = _merge_hits_by_id(by_ingredient, filtered)
+    if objective:
+        by_objective = _filter_sag_hits_by_field(filtered, objective, field="objective")
+        if by_objective:
+            logger.info(
+                "🎯 SAG | filtro objetivo=%s | antes=%s | despues=%s",
+                objective,
+                len(filtered),
+                len(by_objective),
+            )
+            filtered = by_objective
+    if cultivo:
+        by_crop = _filter_sag_hits_by_field(filtered, cultivo, field="crop")
+        if by_crop:
+            logger.info(
+                "🎯 SAG | filtro cultivo=%s | antes=%s | despues=%s",
+                cultivo,
+                len(filtered),
+                len(by_crop),
+            )
+            filtered = by_crop
+    if generic_token:
+        by_generic_obj = _filter_sag_hits_by_field(filtered, generic_token, field="objective")
+        by_generic_ing = _filter_sag_hits_by_field(filtered, generic_token, field="ingredient")
+        merged = by_generic_obj + [hit for hit in by_generic_ing if hit not in by_generic_obj]
+        if merged:
+            logger.info(
+                "🎯 SAG | filtro genérico=%s | antes=%s | despues=%s",
+                generic_token,
+                len(filtered),
+                len(merged),
+            )
+            filtered = merged
+
+    # Si la consulta viene por producto, priorizamos coincidencia exacta de nombre comercial.
+    if product_norm:
+        product_filtered = _filtrar_hits_sag_por_producto(filtered, product_hint)
+        if product_filtered:
+            filtered = product_filtered
+
+    return filtered
+
+
+def _filter_sag_hits_by_field(
+    hits: list[dict[str, Any]],
+    needle: str,
+    *,
+    field: str,
+) -> list[dict[str, Any]]:
+    target = _normalize_text(needle)
+    if not target:
+        return hits
+    tokens = _meaningful_tokens(target)
+
+    def _fields(payload: dict[str, Any]) -> str:
+        if field == "ingredient":
+            composition = _extract_sag_composition(payload)
+            group = str(payload.get("grupo_quimico") or "")
+            producto = str(payload.get("nombre_comercial") or "")
+            producto_alt = str(payload.get("producto_nombre_comercial") or "")
+            producto_id = str(payload.get("producto_id") or "")
+            return _normalize_text(
+                " ".join(
+                    [
+                        composition,
+                        group,
+                        producto,
+                        producto_alt,
+                        producto_id,
+                    ]
+                )
+            )
+        if field == "objective":
+            return _normalize_text(
+                " ".join(
+                    [
+                        str(payload.get("objetivo") or ""),
+                        str(payload.get("objetivo_normalizado") or ""),
+                        str(payload.get("categoria_objetivo") or ""),
+                    ]
+                )
+            )
+        if field == "crop":
+            return _normalize_text(str(payload.get("cultivo") or ""))
+        return ""
+
+    out: list[dict[str, Any]] = []
+    for hit in hits:
+        payload = hit.get("payload") or {}
+        haystack = _fields(payload)
+        if not haystack:
+            continue
+        if target in haystack or haystack in target:
+            out.append(hit)
+            continue
+        if tokens and any(token in haystack for token in tokens):
+            out.append(hit)
+    return out
+
+
+def _extract_ingredient_hint_from_text(text: str) -> str:
+    patterns = (
+        r"\b(?:contiene|contienen|contengan|tiene|tengan|tenga|con|a base de)\s+([a-z0-9][a-z0-9\s\-]{2,80})",
+        r"\b(?:ingrediente activo|ingredientes activos|composicion|sustancia activa)\s*(?:de)?\s*([a-z0-9][a-z0-9\s\-]{2,80})",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            candidate = _sanitize_hint_phrase(match.group(1))
+            if not candidate:
+                continue
+            generic_noise = {
+                "dosis",
+                "dosificacion",
+                "dosificación",
+                "cultivo",
+                "cultivos",
+                "objetivo",
+                "objetivos",
+                "plaga",
+                "plagas",
+                "producto",
+                "productos",
+                "registro",
+                "registros",
+                "sag",
+            }
+            if candidate in generic_noise:
+                continue
+            return candidate
+    return ""
+
+
+def _extract_objective_hint_from_text(text: str) -> str:
+    patterns = (
+        r"\b(?:para|contra|tratar|tratan|trata|traten|control(?:ar|an|en)?|combate(?:n|r)?)\s+([a-z0-9][a-z0-9\s\-]{2,80})",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            candidate = _sanitize_hint_phrase(match.group(1))
+            # Evitar capturar frases de ingrediente.
+            if any(token in candidate for token in ("contiene", "ingrediente", "composicion")):
+                continue
+            return candidate
+    return ""
+
+
+def _extract_crop_hint_from_text(text: str) -> str:
+    patterns = (
+        r"\b(?:en|para)\s+(?:el|la|los|las)?\s*([a-z0-9][a-z0-9\s\-]{2,40})\b",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if not match:
+            continue
+        candidate = _sanitize_hint_phrase(match.group(1))
+        if any(token in candidate for token in ("sag", "registro", "producto", "productos")):
+            continue
+        return candidate
+    return ""
+
+
+def _sanitize_hint_phrase(text: str) -> str:
+    candidate = re.sub(r"\s+", " ", str(text or "")).strip(" .,:;")
+    stop_chunks = (
+        " con ",
+        " en ",
+        " y ",
+        " que ",
+        " del ",
+        " de ",
+    )
+    lowered = f" {candidate.lower()} "
+    cut_idx = len(lowered)
+    for chunk in stop_chunks:
+        idx = lowered.find(chunk)
+        if idx != -1:
+            cut_idx = min(cut_idx, idx)
+    if cut_idx < len(lowered):
+        candidate = lowered[:cut_idx].strip()
+    return re.sub(r"\s+", " ", candidate).strip(" .,:;")
+
+
+def _meaningful_tokens(text: str) -> list[str]:
+    stopwords = {
+        "producto",
+        "productos",
+        "registrado",
+        "registrados",
+        "registro",
+        "sag",
+        "para",
+        "contra",
+        "con",
+        "sin",
+        "del",
+        "de",
+        "la",
+        "el",
+        "los",
+        "las",
+        "que",
+        "cual",
+        "cuales",
+        "tiene",
+        "tienen",
+    }
+    tokens = [t for t in re.findall(r"[a-z0-9]+", _normalize_text(text)) if len(t) >= 4]
+    return [t for t in tokens if t not in stopwords]
+
+
+def _build_sag_response_from_hits(
+    hits: list[dict[str, Any]],
+    *,
+    query_text: str,
+    user_message: str,
+) -> str:
+    grouped: dict[tuple[str, str], dict[str, Any]] = {}
+    for hit in hits:
+        payload = hit.get("payload") or {}
+        nombre = str(
+            payload.get("nombre_comercial") or payload.get("producto_nombre_comercial") or "Producto sin nombre"
+        ).strip()
+        auth = str(payload.get("autorizacion_sag_numero_normalizado") or "N/D").strip()
+        key = (_normalize_text(nombre), auth)
+        if key not in grouped:
+            grouped[key] = {
+                "nombre": nombre,
+                "auth": auth,
+                "tipo": str(
+                    payload.get("tipo")
+                    or payload.get("tipo_formulacion")
+                    or payload.get("formulacion")
+                    or payload.get("formulación")
+                    or "N/D"
+                ).strip(),
+                "composicion": _extract_sag_composition(payload),
+                "cultivos": set(),
+                "objetivos": set(),
+                "dosis": set(),
+            }
+        g = grouped[key]
+        composicion_hit = _extract_sag_composition(payload)
+        if composicion_hit and composicion_hit != "N/D" and g["composicion"] == "N/D":
+            g["composicion"] = composicion_hit
+        tipo_hit = str(
+            payload.get("tipo")
+            or payload.get("tipo_formulacion")
+            or payload.get("formulacion")
+            or payload.get("formulación")
+            or ""
+        ).strip()
+        if tipo_hit and g["tipo"] == "N/D":
+            g["tipo"] = tipo_hit
+        cultivo = str(payload.get("cultivo") or "").strip()
+        objetivo = str(payload.get("objetivo") or "").strip()
+        dosis = re.sub(r"\s+", " ", str(payload.get("dosis_texto") or "")).strip()
+        if cultivo:
+            g["cultivos"].add(cultivo)
+        if objetivo:
+            g["objetivos"].add(objetivo)
+        if dosis:
+            g["dosis"].add(dosis)
+
+    rows = list(grouped.values())
+    if not rows:
+        return "No encontré productos del SAG con coincidencia directa para tu consulta."
+    rows.sort(key=lambda item: _normalize_text(str(item.get("nombre") or "")))
+
+    intro = (
+        f"Aquí tienes los productos del SAG que coinciden con tu consulta ({len(rows)} encontrados):"
+    )
+    lines: list[str] = [intro]
+    for idx, row in enumerate(rows, start=1):
+        cultivos = _render_clean_values(
+            row["cultivos"],
+            default="N/D",
+            max_items=8,
+            max_value_len=70,
+        )
+        objetivos = _render_clean_values(
+            row["objetivos"],
+            default="N/D",
+            max_items=6,
+            max_value_len=120,
+        )
+        dosis = _render_clean_values(
+            row["dosis"],
+            default="N/D",
+            max_items=8,
+            max_value_len=80,
+            sep="; ",
+        )
+        lines.append(f"{idx}. {row['nombre']}")
+        lines.append(f"• Composición / I.A.: {row['composicion']}")
+        lines.append(f"• Tipo: {row['tipo']}")
+        lines.append(f"• Cultivo: {cultivos}")
+        lines.append(f"• Objetivo: {objetivos}")
+        lines.append(f"• Dosis reportada: {dosis}")
+        lines.append(f"• N° Autorización: {row['auth']}")
+
+    response = "\n".join(lines).strip()
+    # Salvaguarda para evitar respuestas excesivas; Telegram permite chunking.
+    if len(response) > 30000:
+        response = response[:30000].rstrip() + "\n\n[Resultado truncado por longitud]"
+    return response
+
+
+def _render_clean_values(
+    values: set[str],
+    *,
+    default: str,
+    max_items: int,
+    max_value_len: int,
+    sep: str = ", ",
+) -> str:
+    if not values:
+        return default
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for value in sorted(values):
+        text = re.sub(r"\s+", " ", str(value or "")).strip(" .,:;")
+        if not text:
+            continue
+        text_norm = _normalize_text(text)
+        if any(token in text_norm for token in ("telefono", "emergencia", "seguridad sin codigos")):
+            continue
+        if len(text) > max_value_len:
+            text = text[:max_value_len].rstrip() + "..."
+        key = _normalize_text(text)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(text)
+        if len(cleaned) >= max_items:
+            break
+    return sep.join(cleaned) if cleaned else default
+
+
 def _build_sag_context_block(hits: list[dict[str, Any]]) -> str:
-    lines: list[str] = []
-    seen: set[tuple[str, str, str, str, str]] = set()
+    grouped: dict[tuple[str, str], dict[str, Any]] = {}
     for hit in hits:
         payload = hit.get("payload") or {}
         producto = str(
@@ -1138,20 +1763,244 @@ def _build_sag_context_block(hits: list[dict[str, Any]]) -> str:
         cultivo = str(payload.get("cultivo") or "N/D").strip()
         objetivo = str(payload.get("objetivo") or "N/D").strip()
         dosis = re.sub(r"\s+", " ", str(payload.get("dosis_texto") or "N/D")).strip()
-        key = (
-            _normalize_text(producto),
-            _normalize_text(tipo),
-            _normalize_text(autorizacion),
-            _normalize_text(cultivo),
-            _normalize_text(objetivo),
+        composicion = _extract_sag_composition(payload)
+
+        # Clave principal por autorización SAG; producto como respaldo para N/D.
+        key = (_normalize_text(autorizacion), _normalize_text(producto))
+        if key not in grouped:
+            grouped[key] = {
+                "producto": producto,
+                "autorizacion": autorizacion,
+                "tipos": set(),
+                "composiciones": set(),
+                "cultivos": set(),
+                "objetivos": set(),
+                "dosis": set(),
+            }
+        row = grouped[key]
+        if tipo and tipo != "N/D":
+            row["tipos"].add(tipo)
+        if composicion and composicion != "N/D":
+            row["composiciones"].add(composicion)
+        if cultivo and cultivo != "N/D":
+            row["cultivos"].add(cultivo)
+        if objetivo and objetivo != "N/D":
+            row["objetivos"].add(objetivo)
+        if dosis and dosis != "N/D":
+            row["dosis"].add(dosis)
+
+    lines: list[str] = []
+    for row in grouped.values():
+        tipo_txt = _render_clean_values(
+            row["tipos"],
+            default="N/D",
+            max_items=5,
+            max_value_len=60,
         )
-        if key in seen:
-            continue
-        seen.add(key)
+        composicion_txt = _render_clean_values(
+            row["composiciones"],
+            default="N/D",
+            max_items=4,
+            max_value_len=120,
+            sep=" | ",
+        )
+        cultivo_txt = _render_clean_values(
+            row["cultivos"],
+            default="N/D",
+            max_items=10,
+            max_value_len=60,
+        )
+        objetivo_txt = _render_clean_values(
+            row["objetivos"],
+            default="N/D",
+            max_items=10,
+            max_value_len=110,
+        )
+        dosis_txt = _render_clean_values(
+            row["dosis"],
+            default="N/D",
+            max_items=10,
+            max_value_len=80,
+            sep="; ",
+        )
         lines.append(
-            f"- producto: {producto} | tipo: {tipo} | autorizacion: {autorizacion} | cultivo: {cultivo} | objetivo: {objetivo} | dosis: {dosis}"
+            f"- producto: {row['producto']} | composicion: {composicion_txt} | tipo: {tipo_txt} | autorizacion: {row['autorizacion']} | cultivo: {cultivo_txt} | objetivo: {objetivo_txt} | dosis: {dosis_txt}"
         )
     return "\n".join(lines) if lines else "- sin datos sag"
+
+
+def _count_sag_consolidated_products(hits: list[dict[str, Any]]) -> int:
+    keys: set[tuple[str, str]] = set()
+    for hit in hits:
+        payload = hit.get("payload") or {}
+        producto = str(
+            payload.get("nombre_comercial")
+            or payload.get("producto_nombre_comercial")
+            or "producto sin nombre"
+        ).strip()
+        auth = str(payload.get("autorizacion_sag_numero_normalizado") or "N/D").strip()
+        keys.add((_normalize_text(auth), _normalize_text(producto)))
+    return len(keys)
+
+
+def _build_sag_context_block_compact(hits: list[dict[str, Any]]) -> str:
+    grouped: dict[tuple[str, str], dict[str, Any]] = {}
+    for hit in hits:
+        payload = hit.get("payload") or {}
+        producto = str(
+            payload.get("nombre_comercial")
+            or payload.get("producto_nombre_comercial")
+            or "Producto sin nombre"
+        ).strip()
+        auth = str(payload.get("autorizacion_sag_numero_normalizado") or "N/D").strip()
+        key = (_normalize_text(auth), _normalize_text(producto))
+        if key not in grouped:
+            grouped[key] = {
+                "producto": producto,
+                "auth": auth,
+                "composiciones": set(),
+                "tipos": set(),
+            }
+        row = grouped[key]
+        comp = _extract_sag_composition(payload)
+        if comp and comp != "N/D":
+            row["composiciones"].add(comp)
+        tipo = str(
+            payload.get("tipo")
+            or payload.get("tipo_formulacion")
+            or payload.get("formulacion")
+            or payload.get("formulación")
+            or ""
+        ).strip()
+        if tipo:
+            row["tipos"].add(tipo)
+
+    ordered = sorted(grouped.values(), key=lambda item: _normalize_text(item["producto"]))
+    lines: list[str] = []
+    for row in ordered:
+        comp_txt = _render_clean_values(
+            row["composiciones"],
+            default="N/D",
+            max_items=2,
+            max_value_len=80,
+            sep=" | ",
+        )
+        tipo_txt = _render_clean_values(
+            row["tipos"],
+            default="N/D",
+            max_items=1,
+            max_value_len=45,
+        )
+        lines.append(
+            f"- producto: {row['producto']} | autorizacion: {row['auth']} | composicion: {comp_txt} | tipo: {tipo_txt}"
+        )
+    return "\n".join(lines) if lines else "- sin datos sag"
+
+
+def _extract_sag_composition(payload: dict[str, Any]) -> str:
+    keys = (
+        "composicion",
+        "composición",
+        "composicion_quimica",
+        "composición_química",
+        "ingrediente_activo",
+        "ingredientes_activos",
+        "ingrediente",
+        "ingredientes",
+        "sustancia_activa",
+        "sustancias_activas",
+        "componente_activo",
+        "componentes_activos",
+        "ia",
+        "i_a",
+        "active_ingredient",
+        "active_ingredients",
+    )
+    parts: list[str] = []
+    for key in keys:
+        value = payload.get(key)
+        text = _payload_value_to_text(value)
+        if text and _looks_like_valid_composition_text(text):
+            parts.append(text)
+    if not parts:
+        group = _payload_value_to_text(payload.get("grupo_quimico"))
+        if group and _looks_like_valid_composition_text(group):
+            parts.append(group)
+    if not parts:
+        excel_pid = str(payload.get("producto_id") or "").strip()
+        excel_comp = get_product_composition("", excel_pid)
+        if excel_comp and _looks_like_valid_composition_text(excel_comp):
+            parts.append(excel_comp)
+    if not parts:
+        for key, value in payload.items():
+            key_norm = _normalize_text(str(key))
+            if not key_norm:
+                continue
+            if not any(token in key_norm for token in ("ingred", "compos", "sustancia", "active")):
+                continue
+            if any(
+                noise in key_norm
+                for noise in (
+                    "telefono",
+                    "telefon",
+                    "correo",
+                    "email",
+                    "emergencia",
+                    "seguridad",
+                    "advertencia",
+                    "contacto",
+                )
+            ):
+                continue
+            text = _payload_value_to_text(value)
+            if text and _looks_like_valid_composition_text(text):
+                parts.append(text)
+    if not parts:
+        return "N/D"
+    cleaned_parts: list[str] = []
+    seen_parts: set[str] = set()
+    for p in parts:
+        p_clean = re.sub(r"\s+", " ", p).strip()
+        key = _normalize_text(p_clean)
+        if not key or key in seen_parts:
+            continue
+        seen_parts.add(key)
+        cleaned_parts.append(p_clean)
+    combined = " | ".join(cleaned_parts)
+    combined = re.sub(r"\s+", " ", combined).strip()
+    if len(combined) > 250:
+        return combined[:250].rstrip() + "..."
+    return combined
+
+
+def _looks_like_valid_composition_text(text: str) -> bool:
+    normalized = _normalize_text(text)
+    if not normalized:
+        return False
+    if any(
+        token in normalized
+        for token in ("telefono", "emergencia", "seguridad", "advertencia", "contacto")
+    ):
+        return False
+    if re.search(r"\+?\d[\d\-\s]{7,}", normalized):
+        return False
+    return True
+
+
+def _payload_value_to_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (str, int, float, bool)):
+        return str(value).strip()
+    if isinstance(value, list):
+        parts = [_payload_value_to_text(item) for item in value]
+        parts = [p for p in parts if p]
+        return ", ".join(parts)
+    if isinstance(value, dict):
+        parts = [_payload_value_to_text(v) for v in value.values()]
+        parts = [p for p in parts if p]
+        return ", ".join(parts)
+    return str(value).strip()
 
 
 def _parece_pedir_ensayo_especifico(text: str) -> bool:

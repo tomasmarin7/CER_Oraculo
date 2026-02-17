@@ -11,6 +11,7 @@ from google.genai import types
 from ..config import Settings
 
 REFINE_MODEL_DEFAULT = "gemini-3-flash-preview"
+REFINE_MODEL_FALLBACK_DEFAULT = "gemini-2.5-flash"
 REFINE_PROMPT_FILE = "refine_question.md"
 MAX_QUERY_WORDS = 60
 MAX_TOKEN_REPETITIONS = 3
@@ -74,24 +75,53 @@ def refine_user_question(question: str, settings: Settings) -> str:
     model_name = (
         settings.gemini_refine_model or REFINE_MODEL_DEFAULT
     ).strip() or REFINE_MODEL_DEFAULT
+    fallback_model = (
+        settings.gemini_fallback_model or REFINE_MODEL_FALLBACK_DEFAULT
+    ).strip() or REFINE_MODEL_FALLBACK_DEFAULT
     system = _load_prompt_template(REFINE_PROMPT_FILE)
     logger.info("🧹 Refiner | enviando consulta para optimizar búsqueda...")
 
-    resp = client.models.generate_content(
-        model=model_name,
-        contents=question,
-        config=types.GenerateContentConfig(
-            system_instruction=system,
-            temperature=0.0,
-        ),
-    )
+    models: list[str] = [model_name]
+    if fallback_model and fallback_model != model_name:
+        models.append(fallback_model)
 
-    rewritten = _normalize_refined_query(resp.text or "")
-    refined = rewritten if rewritten else question.strip()
-    logger.info(
-        "✅ Refiner listo | tiempo=%sms | entrada=%s chars | salida=%s chars",
+    errors: list[str] = []
+    for current_model in models:
+        model_started = time.perf_counter()
+        try:
+            resp = client.models.generate_content(
+                model=current_model,
+                contents=question,
+                config=types.GenerateContentConfig(
+                    system_instruction=system,
+                    temperature=0.0,
+                ),
+            )
+            rewritten = _normalize_refined_query(resp.text or "")
+            refined = rewritten if rewritten else question.strip()
+            logger.info(
+                "✅ Refiner listo | modelo=%s | tiempo_modelo=%sms | tiempo_total=%sms | entrada=%s chars | salida=%s chars",
+                current_model,
+                int((time.perf_counter() - model_started) * 1000),
+                int((time.perf_counter() - started) * 1000),
+                len(question or ""),
+                len(refined),
+            )
+            return refined
+        except Exception as exc:
+            errors.append(f"{current_model}: {type(exc).__name__}: {exc}")
+            logger.warning(
+                "⚠️ Refiner falló | modelo=%s | tiempo=%sms | error=%s",
+                current_model,
+                int((time.perf_counter() - model_started) * 1000),
+                type(exc).__name__,
+            )
+
+    fallback = (question or "").strip()
+    logger.warning(
+        "⏭️ Refiner omitido por error | tiempo_total=%sms | entrada=%s chars | errores=%s",
         int((time.perf_counter() - started) * 1000),
         len(question or ""),
-        len(refined),
+        " | ".join(errors),
     )
-    return refined
+    return fallback

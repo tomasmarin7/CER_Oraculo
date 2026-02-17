@@ -1,0 +1,36 @@
+{
+  "session_id": "7825577976_7825577976-1771343961",
+  "user_id": "7825577976:7825577976",
+  "channel": "telegram",
+  "started_at": "2026-02-17T15:59:21+00:00",
+  "ended_at": null,
+  "status": "open",
+  "state": "WAITING_PROBLEM",
+  "last_activity_ts": "2026-02-17T15:59:58+00:00",
+  "expire_at": "2026-02-17T16:14:58+00:00",
+  "turns": [
+    {
+      "ts": "2026-02-17T15:59:30+00:00",
+      "role": "user",
+      "text": "que productos tienen cianamida?"
+    },
+    {
+      "ts": "2026-02-17T15:59:58+00:00",
+      "role": "assistant",
+      "text": "Aquí tienes los productos del SAG que coinciden con tu consulta (2 encontrados): 1. CIANAMIDA 500 SL • Composición / I.A.: CIANAMIDA 500 SL | CIANAMIDA 500 SL | (56-2) 2 635 38 00 | +56-2-2635-3800, +56-2-2836-8000 • Tipo: Concentrado Soluble (SL) • Cultivo: Cerezo, Nogal, Vides • Objetivo: Adelantar floración, Adelantar la fecha de brotación, cubriendo muy bien los cargadores y pitones, para lo cual se recomienda una aplicación con doble pasada del equipo pulverizador, con el objetivo de lograr un buen mojamiento de yemas., Hacer coincidir la floración de los polinizantes y hacer coincidir la cuaja y/o para suplir las horas de frío en zonas que no se haya cumplido con este requerimiento, por características climáticas., Uniformar floración • Dosis reportada: 2 L/100 L; 3,0 L/100 L; 3,5 L/100 L; 4-5 L/100 L • N° Autorización: 4228 2. CIANAMIDA HIDROGENADA 50 SL Agrospec • Composición / I.A.: CIANAMIDA HIDROGENADA 50 SL Agrospec | CIANAMIDA HIDROGENADA 50 SL Agrospec | (56-2) 2635 3800 | +56-2-2635-3800, +56-2-2836-8000 | Seguridad sin codigos H/P/SGA (verificar si no existen o no fueron extraidos) | otro • Tipo: Concentrado Soluble (SL) • Cultivo: Arándano, Cerezos, Kiwi, Nogales, Vides • Objetivo: adelantar floración, adelanto de la floración, brotación, uniformar, suplir horas de frio y mejorar brotación • Dosis reportada: 1,5 a 3,0; 2; 3,0; 3,5; 4-5 L/100 L agua • N° Autorización: 4228"
+    }
+  ],
+  "meta": {
+    "last_rag_used": "sag",
+    "last_sources": [],
+    "router_trace": [
+      {
+        "action": "ASK_SAG",
+        "query": "productos registrados SAG que contienen cianamida",
+        "rationale": "usuario pregunta por productos con un ingrediente activo específico",
+        "ts": 1771343970
+      }
+    ],
+    "close_reason": ""
+  }
+}

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import logging
 from pathlib import Path
+import threading
 import time
 from typing import Callable
 
@@ -20,8 +21,8 @@ from ..conversation.archive_store import close_session_archive, persist_session_
 from ..conversation.modelos import SesionChat
 from ..conversation.texto import historial_corto
 from ..conversation.flujo_guiado import (
+    execute_guided_action_from_router,
     get_guided_intro_text,
-    try_handle_guided_flow,
 )
 from ..providers.llm import generate_answer
 from ..router import GlobalRouterDecision, route_global_action
@@ -34,13 +35,38 @@ from .texto_oraculo import (
 
 logger = logging.getLogger(__name__)
 CLARIFY_PROMPT_FILE = "clarify_response.md"
+MAX_LOG_TEXT_PREVIEW = 1200
 
 
 @dataclass(slots=True)
 class ServicioConversacionOraculo:
     repositorio_sesiones: RepositorioSesiones
+    _user_locks_guard: threading.Lock = field(init=False, repr=False)
+    _user_locks: dict[str, threading.Lock] = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        self._user_locks_guard = threading.Lock()
+        self._user_locks = {}
 
     def procesar_mensaje(
+        self,
+        *,
+        user_id: str,
+        mensaje_usuario: str,
+        settings: Settings,
+        top_k: int = 8,
+        progress_callback: Callable[[str], None] | None = None,
+    ) -> RespuestaOraculo:
+        with self._get_user_lock(user_id):
+            return self._procesar_mensaje_serializado(
+                user_id=user_id,
+                mensaje_usuario=mensaje_usuario,
+                settings=settings,
+                top_k=top_k,
+                progress_callback=progress_callback,
+            )
+
+    def _procesar_mensaje_serializado(
         self,
         *,
         user_id: str,
@@ -58,6 +84,7 @@ class ServicioConversacionOraculo:
             sesion.estado,
             len(texto),
         )
+        logger.info("👤 Usuario: %s", _preview_for_log(texto))
         if not texto:
             return RespuestaOraculo(texto="Por favor, escribe una consulta válida.")
 
@@ -77,31 +104,6 @@ class ServicioConversacionOraculo:
                 int((time.perf_counter() - started) * 1000),
             )
             return RespuestaOraculo(texto=intro)
-
-        # Fast path para ahorrar una llamada LLM del router global cuando el estado
-        # ya indica claramente seguimiento de detalle o confirmación SAG.
-        if self._debe_ir_directo_a_flujo_guiado(sesion, texto):
-            logger.info(
-                "⚡ Fast path activado | flujo=seguimiento | estado=%s",
-                sesion.estado,
-            )
-            resultado = try_handle_guided_flow(
-                sesion,
-                texto,
-                settings,
-                top_k,
-                progress_callback=progress_callback,
-            )
-            if resultado.handled:
-                logger.info("🧭 Resultado de seguimiento: respuesta directa desde contexto.")
-                return self._cerrar_turno(
-                    sesion,
-                    resultado.response,
-                    rag_usado=resultado.rag_tag,
-                    fuentes=resultado.sources,
-                    started=started,
-                    fase="fastpath_guided",
-                )
 
         self._reportar_progreso(
             progress_callback,
@@ -132,13 +134,13 @@ class ServicioConversacionOraculo:
 
         if self._debe_ejecutar_flujo_guiado(sesion.estado, decision.action):
             logger.info("🔎 Ejecutando flujo guiado CER/SAG según acción del router...")
-            resultado = try_handle_guided_flow(
+            resultado = execute_guided_action_from_router(
                 sesion,
                 texto,
                 settings,
-                top_k,
-                forced_action=decision.action,
-                forced_query=decision.query,
+                action=decision.action,
+                query=decision.query,
+                top_k=top_k,
                 progress_callback=progress_callback,
             )
             if resultado.handled:
@@ -234,6 +236,7 @@ class ServicioConversacionOraculo:
             len(texto),
             elapsed_ms if elapsed_ms is not None else -1,
         )
+        logger.info("🤖 Bot: %s", _preview_for_log(texto))
         return RespuestaOraculo(
             texto=texto,
             rag_usado=rag_usado,
@@ -267,35 +270,6 @@ class ServicioConversacionOraculo:
             }
         )
         sesion.flow_data["router_trace"] = trace[-50:]
-
-    def _debe_ir_directo_a_flujo_guiado(self, sesion: SesionChat, texto: str) -> bool:
-        estado = sesion.estado
-        if estado == EstadoSesion.ESPERANDO_CONFIRMACION_SAG:
-            return True
-        if estado != EstadoSesion.ESPERANDO_DETALLE_PRODUCTO:
-            return False
-
-        offered_reports = sesion.flow_data.get("offered_reports")
-        if not isinstance(offered_reports, list) or not offered_reports:
-            return False
-
-        normalized = normalizar_texto(texto)
-        if normalized in {"menu", "menú", "inicio", "/start"}:
-            return False
-        if any(
-            token in normalized
-            for token in (
-                "nueva busqueda",
-                "otro problema",
-                "otro cultivo",
-                "cambiar de tema",
-                "nueva consulta",
-            )
-        ):
-            return False
-        # En estado de detalle, por defecto el siguiente mensaje se interpreta
-        # como seguimiento del/los informes ya entregados.
-        return True
 
     def _construir_clarificacion_contextual(
         self,
@@ -337,7 +311,64 @@ class ServicioConversacionOraculo:
                 generate_answer(prompt, settings, system_instruction="", profile="complex") or ""
             ).strip()
             if response:
-                return response
+                return self._evitar_repeticion_clarify(sesion, response, mensaje_usuario)
         except Exception:
             logger.exception("No se pudo generar clarificación contextual; usando fallback.")
-        return ACLARACION_ACCION
+        return self._evitar_repeticion_clarify(
+            sesion,
+            ACLARACION_ACCION,
+            mensaje_usuario,
+        )
+
+    def _evitar_repeticion_clarify(
+        self,
+        sesion: SesionChat,
+        candidate: str,
+        mensaje_usuario: str,
+    ) -> str:
+        texto = (candidate or "").strip()
+        if not texto:
+            texto = ACLARACION_ACCION
+        previo = self._ultimo_mensaje_asistente(sesion)
+        if normalizar_texto(previo) != normalizar_texto(texto):
+            return texto
+
+        last_question = str(sesion.flow_data.get("last_question") or "").strip()
+        if last_question:
+            return (
+                "Para entender bien tu contexto y no asumir mal: "
+                f"¿quieres que siga con \"{last_question}\" en ensayos CER, "
+                "o prefieres que lo busque en registros SAG?"
+            )
+        user_text = (mensaje_usuario or "").strip()
+        if user_text:
+            return (
+                "Necesito un poco más de contexto para ayudarte bien. "
+                f"Cuando dices \"{user_text}\", ¿quieres una recomendación basada en ensayos CER "
+                "o una búsqueda en productos registrados en SAG?"
+            )
+        return (
+            "Para avanzar sin mezclar contextos, ¿quieres que revisemos ensayos CER "
+            "o productos registrados en SAG?"
+        )
+
+    def _ultimo_mensaje_asistente(self, sesion: SesionChat) -> str:
+        for msg in reversed(sesion.mensajes):
+            if msg.rol == "assistant":
+                return msg.texto
+        return ""
+
+    def _get_user_lock(self, user_id: str) -> threading.Lock:
+        with self._user_locks_guard:
+            lock = self._user_locks.get(user_id)
+            if lock is None:
+                lock = threading.Lock()
+                self._user_locks[user_id] = lock
+            return lock
+
+
+def _preview_for_log(text: str, max_len: int = MAX_LOG_TEXT_PREVIEW) -> str:
+    value = " ".join(str(text or "").strip().split())
+    if len(value) <= max_len:
+        return value
+    return value[:max_len] + "…"

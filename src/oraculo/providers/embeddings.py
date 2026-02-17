@@ -12,7 +12,7 @@ from ..config import Settings
 
 
 EMBED_MODEL = "gemini-embedding-001"
-EMBED_DIM = 768  # tu Qdrant está en 768
+EMBED_DIM = 768
 logger = logging.getLogger(__name__)
 
 

@@ -1,0 +1,57 @@
+{
+  "session_id": "7825577976_7825577976-1771342278",
+  "user_id": "7825577976:7825577976",
+  "channel": "telegram",
+  "started_at": "2026-02-17T15:31:18+00:00",
+  "ended_at": null,
+  "status": "open",
+  "state": "WAITING_PROBLEM",
+  "last_activity_ts": "2026-02-17T15:35:20+00:00",
+  "expire_at": "2026-02-17T15:50:20+00:00",
+  "turns": [
+    {
+      "ts": "2026-02-17T15:31:42+00:00",
+      "role": "user",
+      "text": "Que productos tienen cianamida?"
+    },
+    {
+      "ts": "2026-02-17T15:32:00+00:00",
+      "role": "assistant",
+      "text": "Aquí tienes los productos registrados en SAG que contienen cianamida según el contexto disponible: **1. CYANAMIDA 50%** • Composición / I.A.: N/D (Nombre indica cianamida al 50%) • Tipo: SL (Concentrado Soluble) • Cultivo: Kiwis, Cerezos, Manzanos, Nogales, Vides, Perales • Objetivo: Romper la dormancia de las yemas, uniformiza la floración y mejora la brotación • Dosis reportada: 2-5 L/100 L Agua (varía según cultivo) • N° Autorización: 4130 **2. CYANAMIDA 50** • Composición / I.A.: N/D (Nombre indica cianamida al 50%) • Tipo: Concentrado Soluble (SL) • Cultivo: Cerezos, Ciruelos, Nogales, Kiwi, Arándanos, Mora, Frambuesa, Zarzaparrilla, Grosellas • Objetivo: Adelantar floración y cosecha, aumentar brotación, uniformar crecimiento de brotes y frutos • Dosis reportada: 1,5-3 L/100 L de agua • N° Autorización: 4133"
+    },
+    {
+      "ts": "2026-02-17T15:33:33+00:00",
+      "role": "user",
+      "text": "Y Dormex está registrado en el sag?"
+    },
+    {
+      "ts": "2026-02-17T15:33:49+00:00",
+      "role": "assistant",
+      "text": "Sí, el producto **Dormex** se encuentra registrado en el SAG. Aquí tienes el detalle consolidado de su registro según el contexto disponible: 1. DORMEX • Composición / I.A.: N/D (No especificado en el contexto, pero es conocido como cianamida hidrogenada) • Tipo: SL (Concentrado Soluble) • Cultivo: Cerezos, Ciruelos, Vides (mesa, vinífera, pisquera), Nogales, Arándanos, Frambuesas, Perales. • Objetivo: Aumentar porcentaje de brotación, uniformizar crecimiento, suplir horas de frío, adelantar brotación/cosecha y sincronizar polinizantes. • Dosis reportada: Varía según cultivo (ej: 1,5 L/100 L en cerezos/berries; 3 L/100 L en ciruelos/perales; 5 L/100 L en vides). • N° Autorización: 4006"
+    },
+    {
+      "ts": "2026-02-17T15:35:20+00:00",
+      "role": "user",
+      "text": "Que productos tienen cianamida hidrogenada"
+    }
+  ],
+  "meta": {
+    "last_rag_used": "sag",
+    "last_sources": [],
+    "router_trace": [
+      {
+        "action": "ASK_SAG",
+        "query": "productos registrados SAG que contienen cianamida",
+        "rationale": "usuario pregunta por productos con un ingrediente activo específico",
+        "ts": 1771342302
+      },
+      {
+        "action": "ASK_SAG",
+        "query": "registro SAG de Dormex",
+        "rationale": "usuario pregunta por registro SAG de un producto específico",
+        "ts": 1771342413
+      }
+    ],
+    "close_reason": ""
+  }
+}

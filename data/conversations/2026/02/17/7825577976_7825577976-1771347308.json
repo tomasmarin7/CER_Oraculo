@@ -1,0 +1,52 @@
+{
+  "session_id": "7825577976_7825577976-1771347308",
+  "user_id": "7825577976:7825577976",
+  "channel": "telegram",
+  "started_at": "2026-02-17T16:55:08+00:00",
+  "ended_at": null,
+  "status": "open",
+  "state": "WAITING_PROBLEM",
+  "last_activity_ts": "2026-02-17T16:57:30+00:00",
+  "expire_at": "2026-02-17T17:12:30+00:00",
+  "turns": [
+    {
+      "ts": "2026-02-17T16:55:21+00:00",
+      "role": "user",
+      "text": "que productos sirven para pulgon?"
+    },
+    {
+      "ts": "2026-02-17T16:55:33+00:00",
+      "role": "assistant",
+      "text": "Para orientarte correctamente sobre el control de pulgón, necesito aclarar la fuente de información que prefieres. ¿Te interesa revisar los resultados de ensayos de eficacia realizados por el CER o prefieres consultar el listado oficial de productos registrados en el SAG?"
+    },
+    {
+      "ts": "2026-02-17T16:55:50+00:00",
+      "role": "user",
+      "text": "me interesa ver que productos del sag dicen servir para tratar el pulgon"
+    },
+    {
+      "ts": "2026-02-17T16:57:30+00:00",
+      "role": "assistant",
+      "text": "Productos registrados SAG para control de **pulgón** encontrados en el contexto: 1. ABSOLUTO® 20% SL • Composición / I.A.: Imidacloprid (20% p/v) • Tipo: Suspensión Concentrada (SC) / SL • Cultivo: Ajo, hortalizas (brócoli, cebolla, espinaca, etc.), berries (arándano, frutilla, frambuesa), frutales de carozo y pomáceas, cítricos, palto, vid. • Objetivo: Pulgón de la frutilla, Pulgón verde del duraznero, Pulgón del melón, Pulgón de la uva, entre otros (también chanchitos blancos, mosquitas). • Dosis reportada: 20-100 cc/100 L; 200-500 cc/ha. • N° Autorización: 1764 2. TREBON® 30 EC • Composición / I.A.: Etofenprox (28,75 % p/v) • Tipo: Concentrado Emulsionable (EC) • Cultivo: Arándanos, carozos (cerezo, ciruelo, durazno), pomáceas, nogales, almendros, vides. • Objetivo: Pulgón verde del duraznero (además de polillas y trips). • Dosis reportada: 20-40 cc/100 L de agua. • N° Autorización: N/D (según contexto) 3. GLADIADOR® 450 WP • Composición / I.A.: Acetamiprid (40% p/p) • Tipo: Polvo Mojable (WP) • Cultivo: Hortalizas diversas (alcachofa, apio, cebolla, lechuga, papa, tomate, etc.), maíz. • Objetivo: Pulgón de la alcachofa, Pulgón de la papa, Pulgón de las crucíferas, Pulgón verde del duraznero, Pulgón del melón. • Dosis reportada: 100-400 g/ha. • N° Autorización: 1778 4. ABSOLUTO® 35 % SC • Composición / I.A.: Imidacloprid (35% p/v) • Tipo: Suspensión Concentrada (SC) • Cultivo: Frutales (almendro, nogal, carozos, pomáceas, cítricos, olivo), berries, hortalizas (tomate, pimiento, cucurbitáceas, brócoli), trigo. • Objetivo: Pulgones (Aphis gossypii, Aulacorthum solani, Myzus persicae, etc.), Pulgón de la uva, Pulgón lanígero. • Dosis reportada: 20-60 cc/100 L; 2,5 L/ha; 1-2 cc/planta (riego). • N° Autorización: 1709 5. ABSOLUTO® 70% WP • Composición / I.A.: Imidacloprid (70% p/p) • Tipo: Polvo Mojable (WP) • Cultivo: Hortalizas, frutales de carozo y pomáceas, cítricos, berries, cereales (trigo, avena, maíz), vid. • Objetivo: Pulgón de las solanáceas, Pulgón de la papa, Pulgón de la frutilla, Pulgón verde del duraznero, Pulgón del melón, Pulgón de la uva, Pulgón del maíz, Pulgón negro de los cereales, Pulgón lanígero. • Dosis reportada: 10-30 g/100 L; 30 g/ha; 0,5-1,5 g/planta o L. • N° Autorización: 1760 6. QUILATE® Plus 45% WP • Composición / I.A.: Acetamiprid (40,0% p/p) • Tipo: Polvo Mojable (WP) • Cultivo: Hortalizas (ajo, cebolla, tomate, lechuga, papa, maíz, cucurbitáceas), frutales de carozo. • Objetivo: Pulgones (Myzus persicae, Aphis gossypii, Aulacorthum solani, Macrosiphum euphorbiae). • Dosis reportada: 20-40 g/hL; 100-400 g/ha. • N° Autorización: 1917 7. PIRIMOR® • Composición / I.A.: Pirimicarb (50% p/p) • Tipo: Granulado Dispersable (WG) • Cultivo: Cereales, flores, hortalizas, maíz, alfalfa, papa, pomáceas, raps. • Objetivo: Amplia variedad de pulgones (Aphis spp., Myzus persicae, Pulgón del raps, Pulgón lanígero, etc.). • Dosis reportada: 30-50 g/100 L; 150-300 g/ha. • N° Autorización: 1004 8. IMIDACLOPRID 200 SL • Composición / I.A.: Imidacloprid (20% p/v) • Tipo: Concentrado Soluble (SL) • Cultivo: Hortalizas (ajo, alcachofa, papa, melón, etc.), avellano europeo, frutales de carozo, frutilla, vides. • Objetivo: Pulgón verde del ciruelo y duraznero, Pulgón de la uva, Pulgón del avellano, Pulgón negro de la alfalfa, Pulgón del melón, Pulgón de la frutilla, Pulgón de las solanáceas y crucíferas. • Dosis reportada: 30-100 cc/100 L (o 0,24 - 2 L/ha según cultivo). • N° Autorización: 1777 9. IMIDACLOPRID 70% WP (y AGROSPEC) • Composición / I.A.: Imidacloprid (70% p/p) • Tipo: Polvo Mojable (WP) • Cultivo: Hortalizas, frutales de carozo y pomáceas, cítricos, berries, avellano europeo, nogal, olivo, cereales. • Objetivo: Pulgones (Aphis spp., Myzus persicae, etc.), Pulgón lanígero, Pulgón del avellano, Pulgón de los cereales. • Dosis reportada: 10-15 g/100 L; 225-300 g/ha. • N° Autorización: 1735 10. Connect® 112,5 SC • Composición / I.A.: Beta-ciflutrina (1,25% p/v) • Tipo: Suspensión Concentrada (SC) • Cultivo: Lechugas, Repollo, Brócoli, Coliflor, Repollo de Bruselas. • Objetivo: Pulgón del haba, Pulgón verde del duraznero, Pulgón de la lechuga, Pulgón de las crucíferas. • Dosis reportada: 0,5-1 L/ha. • N° Autorización: 1845 11. PUNTO® 70 WP • Composición / I.A.: Imidacloprid (70% p/p) • Tipo: Polvo Mojable (WP) • Cultivo: Hortalizas, avellano europeo, cereales, berries, cítricos, palto, pomáceas, tomate. • Objetivo: Pulgón del manzano, Pulgones (Aphis craccivora, Myzus persicae, etc.), Pulgón de los cereales, Pulgón negro de los cereales. • Dosis reportada: 15 g/100L de agua. • N° Autorización: 1547 12. PUZZLE® 70% WG • Composición / I.A.: Imidacloprid (70% p/p) • Tipo: Granulado Dispersable (WG) • Cultivo: Frutales de carozo, berries, tomate, hortalizas, cereales, vides. • Objetivo: Pulgón lanígero del manzano/peral, Pulgón del manzano, Pulgones de la vid, Pulgón verde y negro del duraznero, Pulgón verde de los cítricos, Pulgón de la frutilla, Pulgón de los cereales, Pulgón del melón, Pulgón de la papa. • Dosis reportada: 10-30 g/100 L; 30-40 g/ha. • N° Autorización: 1802"
+    }
+  ],
+  "meta": {
+    "last_rag_used": "sag",
+    "last_sources": [],
+    "router_trace": [
+      {
+        "action": "CLARIFY",
+        "query": "",
+        "rationale": "falta definir si consulta CER o SAG",
+        "ts": 1771347321
+      },
+      {
+        "action": "ASK_SAG",
+        "query": "productos registrados SAG para pulgon con dosis y autorizacion",
+        "rationale": "usuario reitera consulta SAG para pulgon",
+        "ts": 1771347350
+      }
+    ],
+    "close_reason": ""
+  }
+}

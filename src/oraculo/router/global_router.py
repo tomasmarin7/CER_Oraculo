@@ -42,11 +42,6 @@ def route_global_action(
     started = time.perf_counter()
     text = limpiar_texto(user_message)
 
-    # Reglas deterministas de alta prioridad
-    if es_comando_menu(text):
-        logger.info("⚡ Router global | fast path menú -> ASK_PROBLEM")
-        return GlobalRouterDecision(action="ASK_PROBLEM", rationale="menu_command")
-
     prompt = _build_global_router_prompt(sesion, text)
     try:
         if progress_callback:
@@ -74,6 +69,8 @@ def route_global_action(
 
 
 def _fallback_action(text: str) -> str:
+    if es_comando_menu(text):
+        return "ASK_PROBLEM"
     return "CLARIFY"
 
 

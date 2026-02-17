@@ -24,6 +24,7 @@ from ..conversation import (
     renovar_sesion,
 )
 from ..conversation.archive_store import close_session_archive
+from ..observability.logging import log_actor_context
 from .keyboards import get_main_menu_keyboard
 from .messages import (
     get_academic_research_intro_message,
@@ -54,142 +55,150 @@ def _build_processing_message(status: str) -> str:
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    sesion = _obtener_sesion(update)
-    if sesion.mensajes:
-        close_session_archive(sesion, reason="start_command")
-    reiniciar_sesion(sesion)
-    _reset_academic_flags(sesion)
-    _almacen_sesiones.guardar(sesion)
-
-    await update.message.reply_text(
-        get_welcome_message(),
-        reply_markup=get_main_menu_keyboard(),
-        parse_mode=ParseMode.MARKDOWN,
-    )
-
-
-async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    await query.answer()
-
-    sesion = _obtener_sesion(update)
-    if sesion.mensajes:
-        close_session_archive(sesion, reason="menu_callback")
-    reiniciar_sesion(sesion)
-    _reset_academic_flags(sesion)
-    _almacen_sesiones.guardar(sesion)
-
-    await query.edit_message_text(
-        get_menu_message(),
-        reply_markup=get_main_menu_keyboard(),
-        parse_mode=ParseMode.MARKDOWN,
-    )
-
-
-async def research_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    await query.answer()
-    sesion = _obtener_sesion(update)
-    sesion.flow_data["active_mode"] = ACADEMIC_MODE
-    sesion.flow_data["academic_in_progress"] = False
-    sesion.flow_data["pending_intro"] = False
-    renovar_sesion(sesion)
-    _almacen_sesiones.guardar(sesion)
-    logger.info("🎓 Modo investigacion academica activado | user=%s", sesion.user_id)
-    await query.edit_message_text(
-        text=get_academic_research_intro_message(),
-        parse_mode=ParseMode.MARKDOWN,
-    )
-
-
-async def database_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    await query.answer()
-
-    sesion = _obtener_sesion(update)
-    _reset_academic_flags(sesion)
-    sesion.estado = EstadoSesion.ESPERANDO_PROBLEMA
-    renovar_sesion(sesion)
-    _almacen_sesiones.guardar(sesion)
-
-    await query.edit_message_text(
-        text=get_database_intro_message(),
-        parse_mode=ParseMode.MARKDOWN,
-    )
-
-
-async def handle_user_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    mensaje_usuario = (update.message.text or "").strip()
-    user_id = str(update.effective_user.id if update.effective_user else "anon")
-    sesion = _obtener_sesion(update)
-
-    if _debe_mostrar_menu_inicial(sesion, mensaje_usuario):
-        sesion.flow_data["pending_intro"] = False
-        sesion.estado = EstadoSesion.MENU
+    actor_id = _build_session_actor_id(update)
+    with log_actor_context(actor_id):
+        sesion = _obtener_sesion(update)
+        if sesion.mensajes:
+            close_session_archive(sesion, reason="start_command")
+        reiniciar_sesion(sesion)
         _reset_academic_flags(sesion)
-        renovar_sesion(sesion)
         _almacen_sesiones.guardar(sesion)
+
         await update.message.reply_text(
             get_welcome_message(),
             reply_markup=get_main_menu_keyboard(),
             parse_mode=ParseMode.MARKDOWN,
         )
-        return
 
-    if sesion.flow_data.get("academic_in_progress"):
-        await update.message.reply_text(ACADEMIC_WAITING_TEXT)
-        return
 
-    if sesion.flow_data.get("active_mode") == ACADEMIC_MODE:
-        await _handle_academic_research_query(update, context, sesion, mensaje_usuario)
-        return
+async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    actor_id = _build_session_actor_id(update)
+    with log_actor_context(actor_id):
+        sesion = _obtener_sesion(update)
+        if sesion.mensajes:
+            close_session_archive(sesion, reason="menu_callback")
+        reiniciar_sesion(sesion)
+        _reset_academic_flags(sesion)
+        _almacen_sesiones.guardar(sesion)
 
-    settings = _resolver_settings(context)
-    processing_message = await update.message.reply_text(
-        _build_processing_message(INITIAL_STATUS)
-    )
-    loop = asyncio.get_running_loop()
-    progress_state = {"last": INITIAL_STATUS}
-
-    def report_progress(status: str) -> None:
-        next_status = (status or "").strip()
-        if not next_status or next_status == progress_state["last"]:
-            return
-        progress_state["last"] = next_status
-
-        async def _edit_progress() -> None:
-            try:
-                await processing_message.edit_text(_build_processing_message(next_status))
-            except Exception:
-                logger.debug("No se pudo actualizar el mensaje de progreso.")
-
-        loop.call_soon_threadsafe(asyncio.create_task, _edit_progress())
-
-    logger.info(
-        "📩 Mensaje recibido: %r",
-        mensaje_usuario[:180],
-    )
-
-    try:
-        respuesta = await asyncio.to_thread(
-            _servicio_oraculo.procesar_mensaje,
-            user_id=user_id,
-            mensaje_usuario=mensaje_usuario,
-            settings=settings,
-            top_k=8,
-            progress_callback=report_progress,
+        await query.edit_message_text(
+            get_menu_message(),
+            reply_markup=get_main_menu_keyboard(),
+            parse_mode=ParseMode.MARKDOWN,
         )
-    finally:
-        try:
-            await processing_message.delete()
-        except Exception:
-            logger.debug("No se pudo eliminar el mensaje de procesamiento.")
 
-    logger.info(
-        "📤 Respuesta enviada (%s chars)",
-        len(respuesta.texto),
-    )
-    await _send_telegram_response(update, respuesta.texto)
+
+async def research_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    actor_id = _build_session_actor_id(update)
+    with log_actor_context(actor_id):
+        sesion = _obtener_sesion(update)
+        sesion.flow_data["active_mode"] = ACADEMIC_MODE
+        sesion.flow_data["academic_in_progress"] = False
+        sesion.flow_data["pending_intro"] = False
+        renovar_sesion(sesion)
+        _almacen_sesiones.guardar(sesion)
+        logger.info("🎓 Modo investigacion academica activado | user=%s", sesion.user_id)
+        await query.edit_message_text(
+            text=get_academic_research_intro_message(),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+
+
+async def database_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    actor_id = _build_session_actor_id(update)
+    with log_actor_context(actor_id):
+        sesion = _obtener_sesion(update)
+        _reset_academic_flags(sesion)
+        sesion.estado = EstadoSesion.ESPERANDO_PROBLEMA
+        renovar_sesion(sesion)
+        _almacen_sesiones.guardar(sesion)
+
+        await query.edit_message_text(
+            text=get_database_intro_message(),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+
+
+async def handle_user_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    mensaje_usuario = (update.message.text or "").strip()
+    actor_id = _build_session_actor_id(update)
+    with log_actor_context(actor_id):
+        user_id = actor_id
+        sesion = _obtener_sesion(update)
+
+        if _debe_mostrar_menu_inicial(sesion, mensaje_usuario):
+            sesion.flow_data["pending_intro"] = False
+            sesion.estado = EstadoSesion.MENU
+            _reset_academic_flags(sesion)
+            renovar_sesion(sesion)
+            _almacen_sesiones.guardar(sesion)
+            await update.message.reply_text(
+                get_welcome_message(),
+                reply_markup=get_main_menu_keyboard(),
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return
+
+        if sesion.flow_data.get("academic_in_progress"):
+            await update.message.reply_text(ACADEMIC_WAITING_TEXT)
+            return
+
+        if sesion.flow_data.get("active_mode") == ACADEMIC_MODE:
+            await _handle_academic_research_query(update, context, sesion, mensaje_usuario)
+            return
+
+        settings = _resolver_settings(context)
+        processing_message = await update.message.reply_text(
+            _build_processing_message(INITIAL_STATUS)
+        )
+        loop = asyncio.get_running_loop()
+        progress_state = {"last": INITIAL_STATUS}
+
+        def report_progress(status: str) -> None:
+            next_status = (status or "").strip()
+            if not next_status or next_status == progress_state["last"]:
+                return
+            progress_state["last"] = next_status
+
+            async def _edit_progress() -> None:
+                try:
+                    await processing_message.edit_text(_build_processing_message(next_status))
+                except Exception:
+                    logger.debug("No se pudo actualizar el mensaje de progreso.")
+
+            loop.call_soon_threadsafe(asyncio.create_task, _edit_progress())
+
+        logger.info(
+            "📩 Mensaje recibido: %r",
+            mensaje_usuario[:180],
+        )
+
+        try:
+            respuesta = await asyncio.to_thread(
+                _servicio_oraculo.procesar_mensaje,
+                user_id=user_id,
+                mensaje_usuario=mensaje_usuario,
+                settings=settings,
+                top_k=8,
+                progress_callback=report_progress,
+            )
+        finally:
+            try:
+                await processing_message.delete()
+            except Exception:
+                logger.debug("No se pudo eliminar el mensaje de procesamiento.")
+
+        logger.info(
+            "📤 Respuesta enviada (%s chars)",
+            len(respuesta.texto),
+        )
+        await _send_telegram_response(update, respuesta.texto)
 
 
 async def _handle_academic_research_query(
@@ -285,8 +294,14 @@ def _resolver_settings(context: ContextTypes.DEFAULT_TYPE) -> Settings:
 
 
 def _obtener_sesion(update: Update):
-    user_id = str(update.effective_user.id if update.effective_user else "anon")
-    return _almacen_sesiones.obtener_o_crear(user_id)
+    actor_id = _build_session_actor_id(update)
+    return _almacen_sesiones.obtener_o_crear(actor_id)
+
+
+def _build_session_actor_id(update: Update) -> str:
+    user_part = str(update.effective_user.id) if update.effective_user else "anon"
+    chat_part = str(update.effective_chat.id) if update.effective_chat else "chat_anon"
+    return f"{chat_part}:{user_part}"
 
 
 def _reset_academic_flags(sesion) -> None:

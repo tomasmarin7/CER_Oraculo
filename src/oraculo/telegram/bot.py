@@ -20,6 +20,7 @@ from . import handlers
 from .messages import get_generic_error_message
 
 logger = logging.getLogger(__name__)
+DEFAULT_CONCURRENT_UPDATES = 64
 
 
 class TelegramBot:
@@ -44,6 +45,7 @@ class TelegramBot:
         application = (
             Application.builder()
             .token(self.settings.telegram_bot_token.get_secret_value())
+            .concurrent_updates(DEFAULT_CONCURRENT_UPDATES)
             .build()
         )
         application.bot_data["settings"] = self.settings

@@ -106,6 +106,7 @@ def _ordenar_informe_para_telegram(
                     "Reorganiza unicamente el contenido recibido."
                 ),
                 profile="complex",
+                require_complete=True,
             )
             or ""
         ).strip()

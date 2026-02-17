@@ -1,0 +1,24 @@
+{
+  "session_id": "7825577976_7825577976-1771344790",
+  "user_id": "7825577976:7825577976",
+  "channel": "telegram",
+  "started_at": "2026-02-17T16:13:10+00:00",
+  "ended_at": null,
+  "status": "open",
+  "state": "WAITING_PROBLEM",
+  "last_activity_ts": "2026-02-17T16:13:28+00:00",
+  "expire_at": "2026-02-17T16:28:28+00:00",
+  "turns": [
+    {
+      "ts": "2026-02-17T16:13:28+00:00",
+      "role": "user",
+      "text": "que productos tienen cianamida"
+    }
+  ],
+  "meta": {
+    "last_rag_used": "none",
+    "last_sources": [],
+    "router_trace": [],
+    "close_reason": ""
+  }
+}

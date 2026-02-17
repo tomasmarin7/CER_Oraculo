@@ -36,7 +36,9 @@ Copiar `.env.example` a `.env` y completar:
     - `GEMINI_ROUTER_THINKING_BUDGET=0`
   - Respuestas complejas:
     - `GEMINI_COMPLEX_MODEL=gemini-3-pro-preview`
-    - `GEMINI_COMPLEX_THINKING_BUDGET=512`
+    - `GEMINI_COMPLEX_MAX_OUTPUT_TOKENS=4096`
+    - `GEMINI_COMPLEX_THINKING_BUDGET=1536`
+    - `GEMINI_COMPLEX_TIMEOUT_MS=120000`
 
 ## Ejecucion
 
