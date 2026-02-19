@@ -9,7 +9,7 @@ from typing import Callable
 from ..aplicacion.utiles_prompt import cargar_plantilla_prompt, parsear_json_modelo
 from ..config import Settings
 from ..conversation.modelos import SesionChat
-from ..conversation.texto import es_comando_menu, historial_corto, limpiar_texto
+from ..conversation.texto import historial_corto, limpiar_texto
 from ..providers.llm import generate_answer
 
 GLOBAL_ROUTER_PROMPT_FILE = "global_router.md"
@@ -45,7 +45,7 @@ def route_global_action(
     prompt = _build_global_router_prompt(sesion, text)
     try:
         if progress_callback:
-            progress_callback("Analizando tu intencion con el router conversacional...")
+            progress_callback("Estoy entendiendo mejor tu pedido para responderte con precisión...")
         raw = generate_answer(prompt, settings, system_instruction="", profile="router")
         parsed = parsear_json_modelo(raw)
     except Exception:
@@ -69,8 +69,6 @@ def route_global_action(
 
 
 def _fallback_action(text: str) -> str:
-    if es_comando_menu(text):
-        return "ASK_PROBLEM"
     return "CLARIFY"
 
 

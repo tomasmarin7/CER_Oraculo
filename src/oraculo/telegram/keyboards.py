@@ -11,17 +11,11 @@ def get_main_menu_keyboard() -> InlineKeyboardMarkup:
     
     Botones:
     - Consulta Ensayos
-    - Investigación Académica
     """
     keyboard = [
         [
             InlineKeyboardButton(
                 "Consulta Ensayos", callback_data="consult_database"
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                "Investigación Académica", callback_data="academic_research"
             )
         ],
     ]

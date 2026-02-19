@@ -23,7 +23,9 @@ from ..rag.retriever import (
     retrieve_sag_rows_by_ids,
     retrieve_sag_rows_for_products,
 )
-from ..sources.sag_excel_lookup import (
+from ..sources.cer_csv_lookup import detect_cer_entities, load_cer_index
+from ..sources.sag_csv_lookup import (
+    build_csv_query_hints_block,
     find_products_by_ingredient,
     find_products_by_objective,
     get_product_composition,
@@ -147,6 +149,16 @@ def execute_guided_action_from_router(
             progress_callback=progress_callback,
         )
 
+    if action_norm == "CHAT_REPLY" and sesion.estado == EstadoSesion.ESPERANDO_DETALLE_PRODUCTO:
+        return _handle_product_detail_followup(
+            sesion,
+            text,
+            settings,
+            top_k,
+            forced_action="CHAT_REPLY",
+            progress_callback=progress_callback,
+        )
+
     if action_norm == "ASK_SAG":
         sesion.estado = EstadoSesion.ESPERANDO_PROBLEMA
         return _generate_sag_response(
@@ -177,34 +189,27 @@ def _handle_problem_query(
     progress_callback: Callable[[str], None] | None = None,
 ) -> GuidedFlowResult:
     if progress_callback:
-        progress_callback("Buscando ensayos CER relevantes para tu consulta...")
+        progress_callback("Estoy revisando ensayos en la base de datos del CER para tu consulta...")
     logger.info("🔍 Flujo CER | iniciando búsqueda de ensayos para la consulta del usuario...")
-    refined_query, hits = retrieve(question, settings, top_k=top_k)
-    if progress_callback:
-        progress_callback("Armando contexto tecnico de ensayos CER...")
-    logger.info("🧱 Flujo CER | construyendo contexto expandido desde %s documentos...", len(hits))
-    doc_contexts = build_doc_contexts_from_hits(
-        hits,
+    _refined_query, hits = retrieve(
+        question,
         settings,
-        top_docs=max(1, min(top_k, int(settings.rag_top_docs))),
+        top_k=top_k,
+        conversation_context=_render_recent_history(sesion, max_items=10),
     )
-
     sesion.flow_data["last_question"] = question
-    sesion.flow_data["last_doc_contexts"] = _serialize_doc_contexts(doc_contexts)
+    sesion.flow_data["last_doc_contexts"] = []
     sesion.flow_data["last_detail_doc_contexts"] = []
+    sesion.flow_data["last_cer_seed_hits"] = _serialize_seed_hits(hits)
 
-    response_text = _generate_first_response_with_context(
+    if progress_callback:
+        progress_callback("Estoy ordenando los ensayos encontrados para mostrártelos claro...")
+    response_text, scenario, report_options = _build_cer_first_response_from_hits(
         question=question,
-        refined_query=refined_query,
-        doc_contexts=doc_contexts,
+        hits=hits,
         settings=settings,
-        progress_callback=progress_callback,
     )
-    logger.info("📝 Flujo CER | listado de ensayos redactado.")
-    scenario, report_options = _infer_scenario_and_report_options_from_text(
-        response_text,
-        doc_contexts,
-    )
+    logger.info("📝 Flujo CER | listado de ensayos preparado desde metadata estructurada.")
 
     sesion.flow_data["offered_reports"] = report_options
 
@@ -220,7 +225,7 @@ def _handle_problem_query(
     if not response_text:
         response_text = (
             "No encontré una coincidencia clara en los ensayos CER para tu consulta. "
-            "¿Te gustaría que revise productos del SAG relacionados con tu problema?"
+            "Si quieres, puedo buscar en nuestra base de datos de etiquetas para ese problema. ¿Lo hago?"
         )
         sesion.estado = EstadoSesion.ESPERANDO_CONFIRMACION_SAG
 
@@ -232,6 +237,7 @@ def _handle_product_detail_followup(
     user_message: str,
     settings: Settings,
     top_k: int,
+    forced_action: str | None = None,
     progress_callback: Callable[[str], None] | None = None,
 ) -> GuidedFlowResult:
     offered_reports = [
@@ -250,6 +256,26 @@ def _handle_product_detail_followup(
     # respondemos directo sin volver a enrutar como nueva consulta.
     last_detail_items = sesion.flow_data.get("last_detail_doc_contexts") or []
     last_detail_contexts = _deserialize_doc_contexts(last_detail_items)
+    if (forced_action or "").strip().upper() == "CHAT_REPLY":
+        base_contexts = last_detail_contexts or _deserialize_doc_contexts(
+            sesion.flow_data.get("last_doc_contexts") or []
+        )
+        chat_response = _generate_conversational_followup_response(
+            last_question=str(sesion.flow_data.get("last_question") or "").strip(),
+            last_assistant_message=_last_assistant_message(sesion),
+            user_message=user_message,
+            offered_reports=offered_reports,
+            doc_contexts=base_contexts,
+            settings=settings,
+            progress_callback=progress_callback,
+        )
+        sesion.estado = EstadoSesion.ESPERANDO_DETALLE_PRODUCTO
+        return GuidedFlowResult(
+            handled=True,
+            response=chat_response,
+            rag_tag="none",
+        )
+
     if _es_pregunta_sobre_contexto_actual(user_message):
         base_contexts = last_detail_contexts or _deserialize_doc_contexts(
             sesion.flow_data.get("last_doc_contexts") or []
@@ -275,6 +301,7 @@ def _handle_product_detail_followup(
         last_assistant_message=_last_assistant_message(sesion),
         user_message=user_message,
         offered_reports=offered_reports,
+        conversation_history=_render_recent_history(sesion),
         settings=settings,
     )
     if decision.selected_reports:
@@ -299,12 +326,20 @@ def _handle_product_detail_followup(
             progress_callback=progress_callback,
         )
 
+    if decision.action == "ASK_PROBLEM":
+        sesion.estado = EstadoSesion.ESPERANDO_PROBLEMA
+        return GuidedFlowResult(
+            handled=True,
+            response=get_guided_intro_text(),
+            rag_tag="none",
+        )
+
     if decision.action == "ASK_SAG":
         sesion.estado = EstadoSesion.ESPERANDO_PROBLEMA
         sag_product = (decision.sag_product or "").strip()
         sag_query = (decision.query or "").strip()
         if not sag_query and sag_product:
-            sag_query = f"registro SAG y cultivos autorizados para {sag_product}"
+            sag_query = f"registro en base de datos de etiquetas y cultivos autorizados para {sag_product}"
         if not sag_query:
             sag_query = user_message.strip()
         return _generate_sag_response(
@@ -338,19 +373,10 @@ def _handle_product_detail_followup(
 
     if decision.action == "CLARIFY":
         sesion.estado = EstadoSesion.ESPERANDO_DETALLE_PRODUCTO
-        clarify_text = (
-            "Para ayudarte mejor, ¿prefieres que:\n"
-            "• investigue en la base de ensayos del CER, o\n"
-            "• busque información en productos registrados en el SAG?\n\n"
-            "Si quieres seguir con los informes ya listados, indícame cuál:\n"
-            f"{render_report_options(offered_reports)}"
+        clarify_text = _build_followup_clarify_text(
+            user_message=user_message,
+            offered_reports=offered_reports,
         )
-        if _normalize_text(_last_assistant_message(sesion)) == _normalize_text(clarify_text):
-            clarify_text = (
-                "Quiero asegurarme de entenderte bien antes de continuar.\n"
-                f"Sobre \"{user_message.strip()}\": ¿quieres evidencia de ensayos CER "
-                "o prefieres que revise productos registrados en SAG?"
-            )
         return GuidedFlowResult(
             handled=True,
             response=clarify_text,
@@ -391,10 +417,17 @@ def _handle_sag_followup(
         )
 
     if not _is_affirmative(user_message):
-        return GuidedFlowResult(handled=False)
+        return GuidedFlowResult(
+            handled=True,
+            response=(
+                "¿Quieres que busque ahora en nuestra base de datos de etiquetas para este problema?\n"
+                "Si no, puedes escribirme otra consulta para buscar en ensayos CER."
+            ),
+            rag_tag="none",
+        )
 
     last_question = str(sesion.flow_data.get("last_question") or "").strip()
-    query = f"registro SAG y cultivos autorizados para: {last_question}".strip()
+    query = f"registro en base de datos de etiquetas y cultivos autorizados para: {last_question}".strip()
 
     sesion.estado = EstadoSesion.ESPERANDO_PROBLEMA
     return _generate_sag_response(
@@ -416,22 +449,23 @@ def _generate_sag_response(
 ) -> GuidedFlowResult:
     normalized_query = (query or "").strip()
     if not normalized_query:
-        normalized_query = "consulta de productos SAG"
+        normalized_query = "consulta de productos en base de datos de etiquetas"
     effective_user_message = user_message or normalized_query
 
     if progress_callback:
-        progress_callback("Consultando registros SAG relacionados...")
+        progress_callback("Estoy revisando la base de datos de etiquetas...")
     combined_query_norm = _normalize_text(f"{normalized_query} {effective_user_message}")
     ingredient_hint = _extract_ingredient_hint_from_text(combined_query_norm)
     objective_hint = _extract_objective_hint_from_text(combined_query_norm)
     base_top_k = max(1, int(settings.rag_sag_top_k))
     retrieval_top_k = max(base_top_k * 2, 20)
     if progress_callback:
-        progress_callback("Buscando coincidencias SAG en Qdrant...")
+        progress_callback("Estoy extrayendo los productos de etiquetas que coinciden con tu consulta...")
     seed_hits = retrieve_sag(
         normalized_query,
         settings=settings,
         top_k=retrieval_top_k,
+        conversation_context=f"{normalized_query}\n{effective_user_message}",
     )
     filtered_seed_hits = _filtrar_hits_sag_por_consulta(
         seed_hits,
@@ -456,50 +490,50 @@ def _generate_sag_response(
         settings,
         max_rows_per_filter=max(base_top_k * 16, 160),
     )
-    # Boost de recall con Excel para consultas por objetivo/plaga (ej: "pulgon").
+    # Boost de recall con CSV para consultas por objetivo/plaga (ej: "pulgon").
     # Esto evita perder productos por depender solo del top-k semántico inicial.
     if objective_hint:
-        excel_obj_product_ids, excel_obj_auths = find_products_by_objective(
-            settings.sag_excel_path,
+        csv_obj_product_ids, csv_obj_auths = find_products_by_objective(
+            settings.sag_csv_path,
             objective_hint,
         )
-        if excel_obj_product_ids or excel_obj_auths:
-            excel_obj_rows = retrieve_sag_rows_by_ids(
+        if csv_obj_product_ids or csv_obj_auths:
+            csv_obj_rows = retrieve_sag_rows_by_ids(
                 settings=settings,
-                product_ids=excel_obj_product_ids,
-                auth_numbers=excel_obj_auths,
+                product_ids=csv_obj_product_ids,
+                auth_numbers=csv_obj_auths,
                 max_rows=max(base_top_k * 220, 4500),
             )
-            if excel_obj_rows:
-                sag_hits = _merge_hits_by_id(sag_hits, excel_obj_rows)
+            if csv_obj_rows:
+                sag_hits = _merge_hits_by_id(sag_hits, csv_obj_rows)
                 logger.info(
-                    "📎 SAG+Excel | objetivo=%s | product_ids=%s | auths=%s | rows_agregadas=%s | total=%s",
+                    "📎 SAG+CSV | objetivo=%s | product_ids=%s | auths=%s | rows_agregadas=%s | total=%s",
                     objective_hint,
-                    len(excel_obj_product_ids),
-                    len(excel_obj_auths),
-                    len(excel_obj_rows),
+                    len(csv_obj_product_ids),
+                    len(csv_obj_auths),
+                    len(csv_obj_rows),
                     len(sag_hits),
                 )
     if ingredient_hint:
-        excel_product_ids, excel_auths = find_products_by_ingredient(
-            settings.sag_excel_path,
+        csv_product_ids, csv_auths = find_products_by_ingredient(
+            settings.sag_csv_path,
             ingredient_hint,
         )
-        if excel_product_ids or excel_auths:
-            excel_rows = retrieve_sag_rows_by_ids(
+        if csv_product_ids or csv_auths:
+            csv_rows = retrieve_sag_rows_by_ids(
                 settings=settings,
-                product_ids=excel_product_ids,
-                auth_numbers=excel_auths,
+                product_ids=csv_product_ids,
+                auth_numbers=csv_auths,
                 max_rows=max(base_top_k * 24, 240),
             )
-            if excel_rows:
-                sag_hits = _merge_hits_by_id(sag_hits, excel_rows)
+            if csv_rows:
+                sag_hits = _merge_hits_by_id(sag_hits, csv_rows)
                 logger.info(
-                    "📎 SAG+Excel | ingrediente=%s | product_ids=%s | auths=%s | rows_agregadas=%s | total=%s",
+                    "📎 SAG+CSV | ingrediente=%s | product_ids=%s | auths=%s | rows_agregadas=%s | total=%s",
                     ingredient_hint,
-                    len(excel_product_ids),
-                    len(excel_auths),
-                    len(excel_rows),
+                    len(csv_product_ids),
+                    len(csv_auths),
+                    len(csv_rows),
                     len(sag_hits),
                 )
         ingredient_hits_final = _filter_sag_hits_by_field(
@@ -532,7 +566,7 @@ def _generate_sag_response(
     if not sag_hits:
         return GuidedFlowResult(
             handled=True,
-            response="No encontré productos del SAG con coincidencia directa para tu consulta.",
+            response="No encontré productos en la base de datos de etiquetas con coincidencia directa para tu consulta.",
             rag_tag="sag",
         )
 
@@ -554,9 +588,13 @@ def _generate_sag_response(
         query=normalized_query,
         product_hint=product_hint,
         context_block=context_block,
+        csv_hints_block=build_csv_query_hints_block(
+            settings.sag_csv_path,
+            f"{normalized_query} {effective_user_message}",
+        ),
     )
     if progress_callback:
-        progress_callback("Redactando respuesta con datos SAG...")
+        progress_callback("Estoy redactando la respuesta con los datos extraídos...")
     response = (
         generate_answer(
             prompt,
@@ -574,7 +612,24 @@ def _generate_sag_response(
             query_text=normalized_query,
             user_message=effective_user_message,
         )
+    response = _prepend_sag_standard_notice(response)
     return GuidedFlowResult(handled=True, response=response, rag_tag="sag")
+
+
+def _prepend_sag_standard_notice(response: str) -> str:
+    text = (response or "").strip()
+    if not text:
+        return text
+    normalized = _normalize_text(text)
+    if "la siguiente informacion es la que estos productos presentan en sus etiquetas" in normalized:
+        return text
+    notice = (
+        "La siguiente información es la que estos productos presentan en sus etiquetas.\n"
+        "No puedo confirmarte la eficacia de estos productos para lo que dicen hacer.\n"
+        "Solo si el producto ha sido ensayado en CER puedo darte información de cómo se desempeñó;\n"
+        "por eso mismo tampoco puedo decirte cuál de estos productos es mejor que otro."
+    )
+    return f"{notice}\n\n{text}"
 
 
 def _merge_hits_by_id(
@@ -613,19 +668,52 @@ def _generate_cer_detail_followup_response(
     progress_callback: Callable[[str], None] | None = None,
 ) -> str:
     if progress_callback:
-        progress_callback("Preparando detalle tecnico de los ensayos CER...")
+        progress_callback("Estoy preparando el detalle del ensayo que elegiste...")
     doc_contexts = list(seed_doc_contexts)
     logger.info("📂 Detalle | contextos iniciales disponibles: %s", len(doc_contexts))
     question = f"{last_question}\nSeguimiento usuario: {user_message}".strip()
     refined = question
 
     if not doc_contexts:
-        refined, hits = retrieve(question, settings, top_k=top_k)
-        doc_contexts = build_doc_contexts_from_hits(
-            hits,
-            settings,
-            top_docs=max(1, min(top_k, int(settings.rag_top_docs))),
+        selected_doc_ids = _collect_selected_doc_ids_from_followup(
+            user_message=user_message,
+            offered_reports=offered_reports,
+            selected_report_hints=selected_report_hints,
+            selected_report_indexes=selected_report_indexes,
         )
+        seed_hits = _deserialize_seed_hits(sesion.flow_data.get("last_cer_seed_hits") or [])
+        if seed_hits:
+            candidate_hits = seed_hits
+            if selected_doc_ids:
+                candidate_hits = [
+                    hit
+                    for hit in seed_hits
+                    if str((hit.get("payload") or {}).get("doc_id") or "").strip() in selected_doc_ids
+                ]
+            if candidate_hits:
+                doc_contexts = build_doc_contexts_from_hits(
+                    candidate_hits,
+                    settings,
+                    top_docs=max(
+                        1,
+                        min(
+                            len(selected_doc_ids) or top_k,
+                            int(settings.rag_top_docs),
+                        ),
+                    ),
+                )
+        if not doc_contexts:
+            refined, hits = retrieve(
+                question,
+                settings,
+                top_k=top_k,
+                conversation_context=_render_recent_history(sesion, max_items=10),
+            )
+            doc_contexts = build_doc_contexts_from_hits(
+                hits,
+                settings,
+                top_docs=max(1, min(top_k, int(settings.rag_top_docs))),
+            )
 
     selected_doc_contexts = _select_doc_contexts_for_followup(
         user_message=user_message,
@@ -707,40 +795,30 @@ def _select_doc_contexts_for_followup(
     if not combined_message:
         return []
 
+    selected_doc_ids: set[str] = set()
+
     # Prioridad 1: selección exacta que devuelve el router (Gemini).
     for idx in (selected_report_indexes or []):
         if 1 <= idx <= len(offered_reports):
-            selected = _doc_contexts_for_report(offered_reports[idx - 1], doc_contexts)
-            if selected:
-                return selected
+            selected_doc_ids.update(
+                str(doc_id).strip()
+                for doc_id in (offered_reports[idx - 1].get("doc_ids") or [])
+                if str(doc_id).strip()
+            )
 
     # Selección explícita por "ensayo N".
-    ensayo_match = re.search(r"\bensayo\s+(\d+)\b", combined_message)
-    if ensayo_match:
-        idx = int(ensayo_match.group(1))
+    for ensayo_txt in re.findall(r"\bensayo\s+(\d+)\b", combined_message):
+        idx = int(ensayo_txt)
         if 1 <= idx <= len(offered_reports):
-            selected = _doc_contexts_for_report(offered_reports[idx - 1], doc_contexts)
-            if selected:
-                return selected
-
-    # Match directo por nombre de producto mencionado por el usuario.
-    direct_product_matches = []
-    tokens_msg = [t for t in re.findall(r"[a-z0-9áéíóúñ]+", combined_message) if len(t) >= 4]
-    for dc in doc_contexts:
-        prod = _normalize_text(dc.producto)
-        if prod and (
-            prod in combined_message
-            or any(tok in prod for tok in tokens_msg)
-        ):
-            direct_product_matches.append(dc)
-    if direct_product_matches:
-        return direct_product_matches
+            selected_doc_ids.update(
+                str(doc_id).strip()
+                for doc_id in (offered_reports[idx - 1].get("doc_ids") or [])
+                if str(doc_id).strip()
+            )
 
     # Si el usuario pide todos, no filtramos.
     if any(token in combined_message for token in ("todos", "todas", "ambos", "ambas")):
-        return list(doc_contexts)
-
-    selected_doc_ids: set[str] = set()
+        return _prioritize_doc_contexts_for_product_objective(list(doc_contexts))
 
     # Seleccion por ordinal ("el primero", "la segunda", etc.)
     ordinal_map = {
@@ -753,9 +831,11 @@ def _select_doc_contexts_for_followup(
     for idx, report in enumerate(offered_reports, start=1):
         terms = ordinal_map.get(idx, ())
         if any(re.search(rf"\b{re.escape(term)}\b", combined_message) for term in terms):
-            selected = _doc_contexts_for_report(report, doc_contexts)
-            if selected:
-                return selected
+            selected_doc_ids.update(
+                str(doc_id).strip()
+                for doc_id in (report.get("doc_ids") or [])
+                if str(doc_id).strip()
+            )
 
     # Seleccion por menciones de etiqueta o productos del reporte.
     for report in offered_reports:
@@ -767,9 +847,19 @@ def _select_doc_contexts_for_followup(
         ]
         report_terms = [t for t in [label_norm, *products_norm] if t]
         if report_terms and any(term in combined_message for term in report_terms):
-            selected = _doc_contexts_for_report(report, doc_contexts)
-            if selected:
-                return selected
+            selected_doc_ids.update(
+                str(doc_id).strip()
+                for doc_id in (report.get("doc_ids") or [])
+                if str(doc_id).strip()
+            )
+
+    # Match directo por nombre de producto mencionado por el usuario.
+    tokens_msg = [t for t in re.findall(r"[a-z0-9áéíóúñ]+", combined_message) if len(t) >= 4]
+    for dc in doc_contexts:
+        prod = _normalize_text(dc.producto)
+        if prod and (prod in combined_message or any(tok in prod for tok in tokens_msg)):
+            if dc.doc_id:
+                selected_doc_ids.add(dc.doc_id)
 
     # Fallback por metadata del doc cuando no hay doc_ids en offered_reports.
     if not selected_doc_ids:
@@ -783,10 +873,76 @@ def _select_doc_contexts_for_followup(
             terms = [t for t in terms if t]
             if terms and any(term in combined_message for term in terms):
                 matched_contexts.append(dc)
-        return matched_contexts
+        return _prioritize_doc_contexts_for_product_objective(matched_contexts)
 
     filtered = [dc for dc in doc_contexts if dc.doc_id in selected_doc_ids]
-    return filtered
+    if not filtered:
+        return []
+    return _prioritize_doc_contexts_for_product_objective(filtered)
+
+
+def _extract_objective_signature(doc: DocContext) -> str:
+    objective_snippets: list[str] = []
+    for chunk in doc.chunks:
+        section_norm = str(chunk.get("section_norm") or "").upper()
+        if "OBJETIVO" not in section_norm and "OBJECTIVE" not in section_norm:
+            continue
+        raw_text = str(chunk.get("text") or "").strip()
+        if not raw_text:
+            continue
+        normalized = _normalize_text(raw_text)
+        if normalized:
+            objective_snippets.append(normalized)
+    if not objective_snippets:
+        return ""
+    objective_text = " ".join(objective_snippets)
+    tokens = [tok for tok in re.findall(r"[a-z0-9]+", objective_text) if len(tok) >= 4]
+    if not tokens:
+        return ""
+    return " ".join(tokens[:16])
+
+
+def _season_sort_key(temporada: str) -> tuple[int, int, str]:
+    text = str(temporada or "")
+    years = [int(y) for y in re.findall(r"(19\d{2}|20\d{2})", text)]
+    if not years:
+        return (0, 0, "")
+    return (max(years), min(years), text)
+
+
+def _prioritize_doc_contexts_for_product_objective(
+    doc_contexts: list[DocContext],
+) -> list[DocContext]:
+    if not doc_contexts:
+        return []
+
+    by_product: dict[str, list[DocContext]] = {}
+    for dc in doc_contexts:
+        product_key = _normalize_text(dc.producto) or "__unknown_product__"
+        by_product.setdefault(product_key, []).append(dc)
+
+    selected_doc_ids: set[str] = set()
+    prioritized: list[DocContext] = []
+    for group in by_product.values():
+        by_objective: dict[str, list[DocContext]] = {}
+        for i, dc in enumerate(group):
+            objective_key = _extract_objective_signature(dc)
+            if not objective_key:
+                # Sin objetivo explícito no se asume equivalencia; se preserva el informe.
+                objective_key = f"__unknown_objective__:{dc.doc_id or i}"
+            by_objective.setdefault(objective_key, []).append(dc)
+
+        for objective_group in by_objective.values():
+            best = max(objective_group, key=lambda d: _season_sort_key(d.temporada))
+            if best.doc_id and best.doc_id in selected_doc_ids:
+                continue
+            if best.doc_id:
+                selected_doc_ids.add(best.doc_id)
+            prioritized.append(best)
+
+    if not prioritized:
+        return doc_contexts
+    return prioritized
 
 
 def _doc_contexts_for_report(
@@ -871,7 +1027,7 @@ def _generate_first_response_with_context(
 ) -> str:
     logger.info("📝 Redacción | preparando lista de ensayos para el usuario...")
     if progress_callback:
-        progress_callback("Redactando respuesta con ensayos CER...")
+        progress_callback("Estoy redactando la lista de ensayos...")
     prompt = _build_first_response_prompt(
         question=question,
         refined_query=refined_query,
@@ -903,7 +1059,7 @@ def _generate_first_response_with_context(
             len(text),
         )
         if attempt < max_attempts and progress_callback:
-            progress_callback("Respuesta parcial detectada; regenerando para enviarte la versión completa...")
+            progress_callback("Estoy ajustando la redacción para enviártela completa...")
 
     if last_text:
         logger.warning(
@@ -941,8 +1097,11 @@ def _is_complete_first_response(text: str) -> bool:
     if not normalized:
         return False
     if (
-        "te interesaria mas informacion de alguno de estos ensayos" in normalized
-        or "te gustaria que te dijera cuales productos del sag combaten este problema" in normalized
+        "sobre cual ensayo quieres que te detalle mas" in normalized
+        or "sobre cuales ensayos quieres que te detalle mas" in normalized
+        or "te interesaria mas informacion de alguno de estos ensayos" in normalized
+        or "si quieres, puedo buscar en nuestra base de datos de etiquetas" in normalized
+        or "lo hago?" in normalized
     ):
         return True
     # Si no incluye cierre esperado y termina en token corto, suele venir truncada.
@@ -958,6 +1117,7 @@ def _build_sag_response_prompt(
     query: str,
     product_hint: str,
     context_block: str,
+    csv_hints_block: str,
 ) -> str:
     template = _load_prompt_template(RESPUESTA_SAG_PROMPT_FILE)
     return (
@@ -965,6 +1125,10 @@ def _build_sag_response_prompt(
         .replace("{{query}}", query.strip())
         .replace("{{product_hint}}", (product_hint or "no especificado").strip())
         .replace("{{context_block}}", context_block)
+        .replace(
+            "{{csv_hints_block}}",
+            csv_hints_block.strip() or "- sin señales adicionales desde CSV",
+        )
     ).strip()
 
 
@@ -1006,6 +1170,7 @@ def _build_context_block(doc_contexts: list[DocContext]) -> str:
         parts.append(f"=== INFORME {i} ===")
         parts.append(f"doc_id: {dc.doc_id}")
         parts.append(f"temporada: {dc.temporada}")
+        parts.append(f"cliente: {dc.cliente}")
         parts.append(f"producto: {dc.producto}")
         parts.append(f"especie: {dc.especie}")
         parts.append(f"variedad: {dc.variedad}")
@@ -1033,15 +1198,18 @@ def _infer_scenario_and_report_options_from_text(
     lines = [line.strip() for line in (text or "").splitlines() if line.strip()]
     options: list[dict[str, Any]] = []
 
-    if (
-        "te gustaria" in normalized
-        and "producto" in normalized
-        and "sag" in normalized
-    ):
+    if "no se ha ensayado" in normalized:
         scenario = "no_cer"
-    elif "no hemos testeado" in normalized and "pero" in normalized:
+    elif (
+        ("no hemos testeado" in normalized or "no tenemos ensayos cer directos" in normalized)
+        and "otros cultivos" in normalized
+    ):
         scenario = "cross_crop"
-    elif "en el cer hemos testeado" in normalized or "hemos testeado productos" in normalized:
+    elif (
+        "encontre estos ensayos del cer" in normalized
+        or "en el cer hemos encontrado estos ensayos" in normalized
+        or "hemos testeado productos" in normalized
+    ):
         scenario = "direct"
     else:
         scenario = "none"
@@ -1051,6 +1219,12 @@ def _infer_scenario_and_report_options_from_text(
             continue
         content = line.lstrip("•").strip()
         if not content:
+            continue
+
+        structured_fields = _extract_structured_report_fields(content)
+        if structured_fields is not None:
+            label, products = structured_fields
+            options.append(_build_report_option(label, products, doc_contexts))
             continue
 
         # Siempre que haya "label: productos", usamos ambos lados.
@@ -1143,6 +1317,65 @@ def _build_report_option(
     }
 
 
+def _extract_structured_report_fields(content: str) -> tuple[str, list[str]] | None:
+    text = str(content or "").strip()
+    if not text:
+        return None
+    # Formato simple esperado: "producto | cliente | temporada | cultivo"
+    if "|" in text and "producto:" not in _normalize_text(text):
+        fields = [part.strip(" .") for part in text.split("|")]
+        if fields and fields[0]:
+            producto = fields[0]
+            label = producto
+            extra_parts = [part for part in fields[1:4] if part]
+            if extra_parts:
+                label = f"{producto} ({', '.join(extra_parts)})"
+            return label, [producto]
+        return None
+    if "producto:" not in _normalize_text(text):
+        return None
+
+    producto_match = re.search(
+        r"producto:\s*([^|]+)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    cultivo_match = re.search(
+        r"cultivo:\s*([^|]+)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    anno_match = re.search(
+        r"a[nñ]o:\s*([^|]+)",
+        text,
+        flags=re.IGNORECASE,
+    )
+
+    producto = producto_match.group(1).strip(" .") if producto_match else ""
+    cultivo = cultivo_match.group(1).strip(" .") if cultivo_match else ""
+    anno = anno_match.group(1).strip(" .") if anno_match else ""
+
+    label_parts: list[str] = []
+    if producto:
+        label_parts.append(producto)
+    extra_parts: list[str] = []
+    if cultivo:
+        extra_parts.append(cultivo)
+    if anno:
+        extra_parts.append(anno)
+    if extra_parts:
+        if label_parts:
+            label_parts[-1] = f"{label_parts[-1]} ({', '.join(extra_parts)})"
+        else:
+            label_parts.append(f"({', '.join(extra_parts)})")
+    label = " ".join(label_parts).strip() or text
+
+    products: list[str] = []
+    if producto:
+        products.append(producto)
+    return label, products
+
+
 def _limpiar_producto_en_item(text: str) -> str:
     value = str(text or "").strip()
     value = re.sub(r"\(en\s+[^)]+\)", "", value, flags=re.IGNORECASE).strip()
@@ -1153,12 +1386,220 @@ def _extract_species_and_season_from_label(label: str) -> tuple[str, str]:
     text = str(label or "").strip()
     if not text:
         return "", ""
-    match = re.search(r"\(([^,]+),\s*([^)]+)\)", text)
+    match = re.search(r"\(([^)]+)\)", text)
     if not match:
         return "", ""
-    species = _normalize_text(match.group(1))
-    season = _normalize_text(match.group(2))
+    parts = [part.strip() for part in match.group(1).split(",") if part.strip()]
+    if len(parts) < 2:
+        return "", ""
+    species = _normalize_text(parts[0])
+    # Soporta labels con o sin variedad:
+    # - producto (especie, temporada)
+    # - producto (especie, variedad, temporada)
+    season = _normalize_text(parts[-1])
     return species, season
+
+
+def _build_cer_first_response_from_hits(
+    *,
+    question: str,
+    hits: list[dict[str, Any]],
+    settings: Settings,
+) -> tuple[str, str, list[dict[str, Any]]]:
+    offered_reports = _build_report_options_from_hits(hits, settings)
+    if not offered_reports:
+        text = (
+            "No se ha ensayado este caso en el CER.\n"
+            "Si quieres, puedo buscar en nuestra base de datos de etiquetas productos que indiquen este problema en su etiqueta. ¿Lo hago?\n"
+            "Si prefieres no revisar la base de datos de etiquetas, dime otra consulta y buscamos en ensayos CER."
+        )
+        return text, "no_cer", []
+
+    species_hints = detect_cer_entities(settings.cer_csv_path, question).get("especies", set())
+    species_hints_norm = {_normalize_text(s) for s in species_hints if _normalize_text(s)}
+    filtered = offered_reports
+    if species_hints_norm:
+        species_matches = [
+            report
+            for report in offered_reports
+            if _normalize_text(str(report.get("especie") or "")) in species_hints_norm
+        ]
+        if species_matches:
+            filtered = species_matches
+
+    requested_species = next((str(s).strip() for s in species_hints if str(s).strip()), "")
+    first_species = next(
+        (str(r.get("especie") or "").strip() for r in filtered if str(r.get("especie") or "").strip()),
+        "",
+    )
+    problem_text = first_species or (question or "tu consulta").strip()
+
+    lines = [
+        (
+            f"• {r.get('producto') or 'N/D'} | {r.get('cliente') or 'N/D'} | "
+            f"{r.get('temporada') or 'N/D'} | {r.get('especie') or 'N/D'}"
+            + (
+                f" ({r.get('variedad')})"
+                if str(r.get("variedad") or "").strip() and str(r.get("variedad")).strip() != "N/D"
+                else ""
+            )
+        )
+        for r in filtered
+    ]
+    lines_block = "\n\n".join(lines)
+
+    if species_hints_norm and not any(
+        _normalize_text(str(r.get("especie") or "")) in species_hints_norm for r in offered_reports
+    ):
+        cross_problem = requested_species or (question or "tu consulta").strip()
+        text = (
+            f"Para {cross_problem} no tenemos ensayos CER directos, pero sí en otros cultivos:\n"
+            + lines_block
+            + "\n\n¿Sobre cuáles ensayos quieres que te detalle más?\n"
+            "Si ninguno te sirve, puedo buscar en nuestra base de datos de etiquetas productos que indiquen ese problema en su etiqueta.\n"
+            "Si tampoco quieres revisar la base de datos de etiquetas, dime otro problema o cultivo y hacemos una nueva búsqueda en ensayos CER."
+        )
+        return text, "cross_crop", filtered
+
+    text = (
+        f"Encontré estos ensayos del CER para {problem_text}:\n"
+        + lines_block
+        + "\n\n¿Sobre cuáles ensayos quieres que te detalle más?\n"
+        "Si ninguno te sirve, puedo buscar productos en nuestra base de datos de etiquetas que indiquen ese problema en su etiqueta.\n"
+        "Si tampoco quieres revisar la base de datos de etiquetas, dime otro problema o cultivo y hacemos una nueva búsqueda en ensayos CER."
+    )
+    return text, "direct", filtered
+
+
+def _build_report_options_from_hits(
+    hits: list[dict[str, Any]],
+    settings: Settings,
+) -> list[dict[str, Any]]:
+    index = load_cer_index(settings.cer_csv_path)
+    by_pdf = {_normalize_text(rec.pdf): rec for rec in index.records if _normalize_text(rec.pdf)}
+
+    options: list[dict[str, Any]] = []
+    seen_doc_ids: set[str] = set()
+    for hit in hits:
+        payload = hit.get("payload") or {}
+        doc_id = str(payload.get("doc_id") or "").strip()
+        if doc_id and doc_id in seen_doc_ids:
+            continue
+        if doc_id:
+            seen_doc_ids.add(doc_id)
+
+        pdf = str(payload.get("pdf_filename") or "").strip()
+        rec = by_pdf.get(_normalize_text(pdf))
+
+        producto = str((rec.producto if rec else payload.get("producto")) or "").strip() or "N/D"
+        cliente = str((rec.cliente if rec else payload.get("cliente")) or "").strip() or "N/D"
+        temporada = str((rec.temporada if rec else payload.get("temporada")) or "").strip() or "N/D"
+        especie = str((rec.especie if rec else payload.get("especie")) or "").strip() or "N/D"
+        variedad = str((rec.variedad if rec else payload.get("variedad")) or "").strip() or "N/D"
+
+        label = f"{producto} ({especie}, {variedad}, {temporada})"
+        options.append(
+            {
+                "label": label,
+                "products": [producto],
+                "doc_ids": [doc_id] if doc_id else [],
+                "producto": producto,
+                "cliente": cliente,
+                "temporada": temporada,
+                "especie": especie,
+                "variedad": variedad,
+            }
+        )
+
+    # Deduplicar por combinación visible para evitar repetir el mismo ensayo en formato distinto.
+    unique: list[dict[str, Any]] = []
+    seen_keys: set[tuple[str, str, str, str]] = set()
+    for option in options:
+        key = (
+            _normalize_text(str(option.get("producto") or "")),
+            _normalize_text(str(option.get("cliente") or "")),
+            _normalize_text(str(option.get("temporada") or "")),
+            _normalize_text(str(option.get("especie") or "")),
+            _normalize_text(str(option.get("variedad") or "")),
+        )
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        unique.append(option)
+    return unique
+
+
+def _serialize_seed_hits(hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for hit in hits:
+        out.append(
+            {
+                "id": hit.get("id"),
+                "score": float(hit.get("score", 0.0)),
+                "payload": dict(hit.get("payload") or {}),
+            }
+        )
+    return out
+
+
+def _deserialize_seed_hits(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        out.append(
+            {
+                "id": item.get("id"),
+                "score": float(item.get("score", 0.0)),
+                "payload": dict(item.get("payload") or {}),
+            }
+        )
+    return out
+
+
+def _collect_selected_doc_ids_from_followup(
+    *,
+    user_message: str,
+    offered_reports: list[dict[str, Any]],
+    selected_report_hints: list[str] | None,
+    selected_report_indexes: list[int] | None,
+) -> set[str]:
+    selected_doc_ids: set[str] = set()
+    for idx in (selected_report_indexes or []):
+        if 1 <= idx <= len(offered_reports):
+            selected_doc_ids.update(
+                str(doc_id).strip()
+                for doc_id in (offered_reports[idx - 1].get("doc_ids") or [])
+                if str(doc_id).strip()
+            )
+
+    hints_norm = [_normalize_text(h) for h in (selected_report_hints or []) if _normalize_text(h)]
+    message_norm = _normalize_text(user_message)
+    combined = " ".join([message_norm, *hints_norm]).strip()
+    for ensayo_txt in re.findall(r"\bensayo\s+(\d+)\b", combined):
+        idx = int(ensayo_txt)
+        if 1 <= idx <= len(offered_reports):
+            selected_doc_ids.update(
+                str(doc_id).strip()
+                for doc_id in (offered_reports[idx - 1].get("doc_ids") or [])
+                if str(doc_id).strip()
+            )
+
+    for report in offered_reports:
+        label = _normalize_text(str(report.get("label") or ""))
+        products = [
+            _normalize_text(str(p))
+            for p in (report.get("products") or [])
+            if _normalize_text(str(p))
+        ]
+        terms = [t for t in [label, *products] if t]
+        if terms and any(t in combined for t in terms):
+            selected_doc_ids.update(
+                str(doc_id).strip()
+                for doc_id in (report.get("doc_ids") or [])
+                if str(doc_id).strip()
+            )
+    return selected_doc_ids
 
 
 def _token_roots(text: str) -> set[str]:
@@ -1272,12 +1713,55 @@ def _is_negative(text: str) -> bool:
     return normalized in no_words
 
 
+def _build_followup_clarify_text(
+    *,
+    user_message: str,
+    offered_reports: list[dict[str, Any]],
+) -> str:
+    normalized = _normalize_text(user_message)
+    if any(
+        token in normalized
+        for token in ("no me interesa", "ninguno", "ninguna", "no me sirven", "ningun ensayo")
+    ):
+        return (
+            "Entiendo.\n"
+            "Si quieres, hacemos una nueva búsqueda de ensayos del CER para otro cultivo, problema o producto.\n"
+            "Y si ninguno de estos ensayos te satisface, también puedo buscar en nuestra base de datos de etiquetas según lo que declaran en su etiqueta."
+        )
+
+    options = render_report_options(offered_reports)
+    base = (
+        "Para continuar con precisión, dime qué ensayo o ensayos quieres revisar "
+        "(por número o por producto).\n"
+    )
+    if options:
+        return (
+            f"{base}"
+            "Opciones disponibles:\n"
+            f"{options}"
+        )
+    cleaned = (user_message or "").strip()
+    if cleaned:
+        return (
+            "No logré identificar el ensayo exacto que quieres detallar. "
+            f"Cuando dices \"{cleaned}\", indícame el número de ensayo o el producto."
+        )
+    return "No logré identificar el ensayo exacto. Indícame el número o producto del ensayo."
+
+
 def _normalize_text(text: str) -> str:
     text = unicodedata.normalize("NFKD", text or "")
     text = "".join(ch for ch in text if not unicodedata.combining(ch))
     text = text.lower().strip()
     text = re.sub(r"\s+", " ", text)
     return text
+
+
+def _render_recent_history(sesion: SesionChat, max_items: int = 12) -> str:
+    if not sesion.mensajes:
+        return "(vacio)"
+    lines = [f"{m.rol}: {m.texto}" for m in sesion.mensajes[-max_items:]]
+    return "\n".join(lines)
 
 
 def _generate_conversational_followup_response(
@@ -1291,7 +1775,7 @@ def _generate_conversational_followup_response(
 ) -> str:
     logger.info("💬 Follow-up | respondiendo con contexto conversacional ya disponible...")
     if progress_callback:
-        progress_callback("Preparando respuesta de seguimiento...")
+        progress_callback("Estoy preparando una respuesta con lo que ya revisamos...")
     prompt = _build_followup_chat_prompt(
         last_question=last_question,
         last_assistant_message=last_assistant_message,
@@ -1635,6 +2119,7 @@ def _build_sag_response_from_hits(
                 "auth": auth,
                 "tipo": str(
                     payload.get("tipo")
+                    or payload.get("tipo_producto")
                     or payload.get("tipo_formulacion")
                     or payload.get("formulacion")
                     or payload.get("formulación")
@@ -1651,6 +2136,7 @@ def _build_sag_response_from_hits(
             g["composicion"] = composicion_hit
         tipo_hit = str(
             payload.get("tipo")
+            or payload.get("tipo_producto")
             or payload.get("tipo_formulacion")
             or payload.get("formulacion")
             or payload.get("formulación")
@@ -1660,7 +2146,7 @@ def _build_sag_response_from_hits(
             g["tipo"] = tipo_hit
         cultivo = str(payload.get("cultivo") or "").strip()
         objetivo = str(payload.get("objetivo") or "").strip()
-        dosis = re.sub(r"\s+", " ", str(payload.get("dosis_texto") or "")).strip()
+        dosis = _normalize_sag_dose_text(str(payload.get("dosis_texto") or ""))
         if cultivo:
             g["cultivos"].add(cultivo)
         if objetivo:
@@ -1670,11 +2156,11 @@ def _build_sag_response_from_hits(
 
     rows = list(grouped.values())
     if not rows:
-        return "No encontré productos del SAG con coincidencia directa para tu consulta."
+        return "No encontré productos en la base de datos de etiquetas con coincidencia directa para tu consulta."
     rows.sort(key=lambda item: _normalize_text(str(item.get("nombre") or "")))
 
     intro = (
-        f"Aquí tienes los productos del SAG que coinciden con tu consulta ({len(rows)} encontrados):"
+        f"Aquí tienes los productos de la base de datos de etiquetas que coinciden con tu consulta ({len(rows)} encontrados):"
     )
     lines: list[str] = [intro]
     for idx, row in enumerate(rows, start=1):
@@ -1704,6 +2190,7 @@ def _build_sag_response_from_hits(
         lines.append(f"• Objetivo: {objetivos}")
         lines.append(f"• Dosis reportada: {dosis}")
         lines.append(f"• N° Autorización: {row['auth']}")
+        lines.append("")
 
     response = "\n".join(lines).strip()
     # Salvaguarda para evitar respuestas excesivas; Telegram permite chunking.
@@ -1754,6 +2241,7 @@ def _build_sag_context_block(hits: list[dict[str, Any]]) -> str:
         ).strip()
         tipo = str(
             payload.get("tipo")
+            or payload.get("tipo_producto")
             or payload.get("tipo_formulacion")
             or payload.get("formulacion")
             or payload.get("formulación")
@@ -1762,7 +2250,7 @@ def _build_sag_context_block(hits: list[dict[str, Any]]) -> str:
         autorizacion = str(payload.get("autorizacion_sag_numero_normalizado") or "N/D").strip()
         cultivo = str(payload.get("cultivo") or "N/D").strip()
         objetivo = str(payload.get("objetivo") or "N/D").strip()
-        dosis = re.sub(r"\s+", " ", str(payload.get("dosis_texto") or "N/D")).strip()
+        dosis = _normalize_sag_dose_text(str(payload.get("dosis_texto") or "N/D"))
         composicion = _extract_sag_composition(payload)
 
         # Clave principal por autorización SAG; producto como respaldo para N/D.
@@ -1826,7 +2314,22 @@ def _build_sag_context_block(hits: list[dict[str, Any]]) -> str:
         lines.append(
             f"- producto: {row['producto']} | composicion: {composicion_txt} | tipo: {tipo_txt} | autorizacion: {row['autorizacion']} | cultivo: {cultivo_txt} | objetivo: {objetivo_txt} | dosis: {dosis_txt}"
         )
-    return "\n".join(lines) if lines else "- sin datos sag"
+    return "\n".join(lines) if lines else "- sin datos de etiquetas"
+
+
+def _normalize_sag_dose_text(value: str) -> str:
+    text = re.sub(r"\s+", " ", str(value or "")).strip(" .,:;")
+    if not text:
+        return ""
+    # Patrones comunes del dataset: "1a5", "6a12", "1a1,5", etc.
+    text = re.sub(r"(\d)\s*a\s*(\d)", r"\1 a \2", text, flags=re.IGNORECASE)
+    # Asegura espacio entre número y unidad: "100L" -> "100 L", "3Kg" -> "3 Kg".
+    text = re.sub(r"(\d)([A-Za-z])", r"\1 \2", text)
+    # Normaliza separadores para mantener legibilidad.
+    text = re.sub(r"\s*;\s*", "; ", text)
+    text = re.sub(r"\s*,\s*", ", ", text)
+    text = re.sub(r"\s+", " ", text).strip(" .")
+    return text
 
 
 def _count_sag_consolidated_products(hits: list[dict[str, Any]]) -> int:
@@ -1867,6 +2370,7 @@ def _build_sag_context_block_compact(hits: list[dict[str, Any]]) -> str:
             row["composiciones"].add(comp)
         tipo = str(
             payload.get("tipo")
+            or payload.get("tipo_producto")
             or payload.get("tipo_formulacion")
             or payload.get("formulacion")
             or payload.get("formulación")
@@ -1894,12 +2398,13 @@ def _build_sag_context_block_compact(hits: list[dict[str, Any]]) -> str:
         lines.append(
             f"- producto: {row['producto']} | autorizacion: {row['auth']} | composicion: {comp_txt} | tipo: {tipo_txt}"
         )
-    return "\n".join(lines) if lines else "- sin datos sag"
+    return "\n".join(lines) if lines else "- sin datos de etiquetas"
 
 
 def _extract_sag_composition(payload: dict[str, Any]) -> str:
     keys = (
         "composicion",
+        "composicion_texto",
         "composición",
         "composicion_quimica",
         "composición_química",

@@ -1,0 +1,57 @@
+{
+  "session_id": "7825577976_7825577976-1771528141",
+  "user_id": "7825577976:7825577976",
+  "channel": "telegram",
+  "started_at": "2026-02-19T19:09:01+00:00",
+  "ended_at": null,
+  "status": "open",
+  "state": "WAITING_PRODUCT_DETAIL",
+  "last_activity_ts": "2026-02-19T19:10:31+00:00",
+  "expire_at": "2026-02-19T19:25:31+00:00",
+  "turns": [
+    {
+      "ts": "2026-02-19T19:09:01+00:00",
+      "role": "assistant",
+      "text": "*Oráculo Agrónomo CER* Soy un asistente del Centro de Evaluación Rosario (CER). Te ayudo a revisar qué productos hemos ensayado en cultivos y plagas específicas, y a resumirte resultados, dosis y condiciones de ensayo. Cuéntame cuál es tu problema con el cultivo o qué información necesitas."
+    },
+    {
+      "ts": "2026-02-19T19:09:24+00:00",
+      "role": "user",
+      "text": "Tengo problemas con ovidio"
+    },
+    {
+      "ts": "2026-02-19T19:09:37+00:00",
+      "role": "assistant",
+      "text": "Entendido, buscas controlar oídio. Para poder ayudarte con los ensayos del CER, ¿podrías indicarme en qué cultivo se presenta el problema?"
+    },
+    {
+      "ts": "2026-02-19T19:10:10+00:00",
+      "role": "user",
+      "text": "Duraznos"
+    },
+    {
+      "ts": "2026-02-19T19:10:31+00:00",
+      "role": "assistant",
+      "text": "Para oídio en durazno no tenemos ensayos CER directos, pero sí en otros cultivos: • Ensayo 1 | Producto: GUIZUFRE | Química/Empresa: HUMIC | Año: 2019-2020 | Cultivo: NECTARIN Si ninguno te sirve, puedo buscar productos registrados en el SAG que indiquen ese problema en su etiqueta. Si tampoco quieres revisar SAG, dime otro problema o cultivo y hacemos una nueva búsqueda en ensayos CER. ¿Sobre cuál ensayo quieres que te detalle más?"
+    }
+  ],
+  "meta": {
+    "last_rag_used": "cer",
+    "last_sources": [],
+    "router_trace": [
+      {
+        "action": "CLARIFY",
+        "query": "",
+        "rationale": "Falta el cultivo para buscar ensayos CER sobre ovidio.",
+        "ts": 1771528164
+      },
+      {
+        "action": "NEW_CER_QUERY",
+        "query": "oídio en duraznos",
+        "rationale": "El usuario especifica el cultivo para la consulta técnica previa.",
+        "ts": 1771528210
+      }
+    ],
+    "close_reason": ""
+  }
+}

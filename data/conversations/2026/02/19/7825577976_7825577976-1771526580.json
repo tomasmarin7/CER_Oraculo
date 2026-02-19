@@ -1,0 +1,57 @@
+{
+  "session_id": "7825577976_7825577976-1771526580",
+  "user_id": "7825577976:7825577976",
+  "channel": "telegram",
+  "started_at": "2026-02-19T18:43:00+00:00",
+  "ended_at": null,
+  "status": "open",
+  "state": "WAITING_PROBLEM",
+  "last_activity_ts": "2026-02-19T18:45:03+00:00",
+  "expire_at": "2026-02-19T19:00:03+00:00",
+  "turns": [
+    {
+      "ts": "2026-02-19T18:43:00+00:00",
+      "role": "assistant",
+      "text": "*Oráculo Agrónomo CER* Soy un asistente del Centro de Evaluación Rosario (CER). Te ayudo a revisar qué productos hemos ensayado en cultivos y plagas específicas, y a resumirte resultados, dosis y condiciones de ensayo. Cuéntame cuál es tu problema con el cultivo o qué información necesitas."
+    },
+    {
+      "ts": "2026-02-19T18:43:39+00:00",
+      "role": "user",
+      "text": "Tengo problema con arañitas en mi cultivo"
+    },
+    {
+      "ts": "2026-02-19T18:44:05+00:00",
+      "role": "assistant",
+      "text": "Encontré estos ensayos del CER para arañitas: • Ensayo 1 (Nogal, 2015-2016): Bioil-S (Pro), Elf Pure Spray, Citroliv • Ensayo 2 (Nogal, 2021-2022): Espirodiclofen 240 SC, Bifentrin 100 EC, Espirodiclofen+Bifentrin, Espirodiclofen+Abamectina ¿Sobre cuál ensayo quieres que te detalle más?"
+    },
+    {
+      "ts": "2026-02-19T18:44:29+00:00",
+      "role": "user",
+      "text": "No me interesa ninguno de esos"
+    },
+    {
+      "ts": "2026-02-19T18:45:03+00:00",
+      "role": "assistant",
+      "text": "Aquí tienes un listado de productos con registro SAG para el control de arañitas, según el contexto proporcionado. 1. **AZUFRE MOJABLE URKABE®** • Composición / I.A.: Azufre 80% p/p • Tipo: POLVO MOJABLE WP • Cultivo: Alcachofa, Arveja, Frejol, Frutilla, Papa, Tomate, Cerezo, Nectarinos, Ciruelo, Duraznero, Manzano, Melón, Sandía, Zapallo, Pepino, Cítricos (Naranjo, Limonero, Mandarino, Pomelo), Paltos, Parronales - Vid, Peral, Remolacha. • Objetivo: Arañita roja del palto, Eriófido del tomate, Prevención de Arañitas (bimaculada, carmín, roja de los cítricos, roja europea), Prevención de la Erinosis de la vid. • Dosis reportada: 150-700 g/lt; 3-8 Kg/ha. • N° Autorización: 2618 2. **AZUFRE VENTILADO MONTE URKABE®** • Composición / I.A.: Azufre 97.3% p/p • Tipo: POLVO SECO DP • Cultivo: Alcachofa, Arveja, Frejol, Manzano, Melón, Sandía, Zapallo, Pepino, Cítricos, Paltos, Papa, Parronales - Vid, Remolacha, Remolacha Azucarera, Flores (Rosas, Claveles, Crisantemos, Gladiolos), Tomate, Viveros Forestales, Zapallo italiano. • Objetivo: Arañita bimaculada, Arañita roja del palto, Prevención de arañitas (carmín, roja de la uva de mesa, roja de los cítricos, roja europea), Falsa arañita roja de la vid, Acaro ancho, Prevención de la Erinosis de la vid. • Dosis reportada: 4-40 Kg/ha. • N° Autorización: 2122 / 21220 3. **MICROTHIOL® SPECIAL DISPERSS** • Composición / I.A.: Azufre 80% p/p • Tipo: WG (Granulado Dispersable) • Cultivo: Achicoria, Frutos secos (Almendro, Castaño, Nogal, Avellano europeo), Carozos (Cerezos, Ciruelos, Durazneros, Nectarinos, Damascos), Hortalizas (Sandía, Melón, Zapallo, Pepino), Cítricos (Mandarinos). • Objetivo: Arañita bimaculada, Arañita roja del palto, Prevención de arañitas (carmín, roja de la uva de mesa, roja europea, roja de los cítricos), Falsa arañita roja, Ácaro ancho, Prevención de la Erinosis de la vid. • Dosis reportada: 200-700 gr/100 L agua; 2-6 kg/ha. • N° Autorización: 2520 4. **ACOIDAL® FLO** • Composición / I.A.: Azufre 72% p/v • Tipo: SC (Suspensión Concentrada) • Cultivo: Ají, Pimentón, Almendro, Cerezo, Ciruelo, Avellano Europeo, Damasco, Duraznero, Nectarines, Frutilla, Frejol, Papa, Cítricos (Limonero, Mandarino, Pomelo, Naranjo), Manzano, Melón, Pepino, Sandía, Zapallo, Paltos. • Objetivo: Arañita bimaculada, Prevención de arañitas (carmín, roja de la uva de mesa), Arañita roja del palto, Eriófido del tomate, Falsa arañita roja de la vid. • Dosis reportada: 130-700 cc/100 L; 2-8 L/ha. • N° Autorización: 21290 5. **AZUFRE-FLO** • Composición / I.A.: Azufre 72% p/v • Tipo: SUSPENSION CONCENTRADA SC • Cultivo: Ají, Pimenton, Almendro, Cerezo, Ciruelo, Damasco, Duraznero, Nectarines, Frutilla, Frejol, Papa, Manzano, Melón, Pepino, Sandía, Zapallo, Paltos, Peral. • Objetivo: Arañita bimaculada, Prevención de arañitas (carmín, roja europea, roja de la uva de mesa), Arañita roja del palto, Eriófido del tomate, Falsa arañita roja de la vid. • Dosis reportada: 130-700 cc/100 L; 2-3 L/ha. • N° Autorización: 2756 6. **AZUFRE FLOABLE AN 720 SC** • Composición / I.A.: Azufre 72 % p/v • Tipo: Suspension Concentrada SC • Cultivo: Ají, Pimenton, Almendro, Cerezo, Ciruelo, Damasco, Duraznero, Nectarines, Frutilla, Frejol, Papa, Manzano, Melón, Pepino, Sandía, Zapallo, Paltos, Peral, Remolacha azucarera. • Objetivo: Arañita bimaculada, Prevención de arañitas (carmín, roja europea, roja de la uva de mesa), Arañita roja del palto, Falsa arañita roja de la vid. • Dosis reportada: 130-700 cc/100 L; 2-7 L/ha. • N° Autorización: 27560 7. **LANDIA-MAX** • Composición / I.A.: Azufre 93 % p/p • Tipo: Polvo Seco DP • Cultivo: Carozos (Cerezo, Nectarinos, Ciruelo, Damasco), Flores (Crisantemos, Gladiolos, Rosas), Manzano, Melón, Sandía, Zapallo, Pepino, Paltos, Papa, Parronales- Vid, Tomate, Viveros Forestales, Zapallo italiano, Alcachofa, Arveja, Frejol. • Objetivo: Arañita bimaculada, Prevención de arañitas (carmín, roja europea, roja de la uva de mesa), Arañita roja del palto, Prevención de la Erinosis de la vid. • Dosis reportada: 10-40 Kg/ha. • N° Autorización: 2724 8. **THIOLUX®** • Composición / I.A.: Azufre 80% p/p • Tipo: POLVO MOJABLE WP • Cultivo: Alcachofa, Arveja, Frejol, Frutilla, Papa, Tomate, Carozos (Cerezo, Nectarinos, Ciruelo, Duraznero), Flores (Crisantemo, Rosas), Manzano, Melón, Sandia, Zapallo, Pepino, Cítricos (Naranjo, Limonero, Mandarino, Pomelo), Paltos, Parronales Vid, Remolacha. • Objetivo: Arañita bimaculada, Prevención de arañitas (carmín, roja de la uva de mesa, roja de los cítricos, roja europea), Arañita roja del palto, Acaro ancho, Prevencion de la Erinosis de la vid. • Dosis reportada: 250-700 g/100 L; 4-8 kg/ha. • N° Autorización: 24310"
+    }
+  ],
+  "meta": {
+    "last_rag_used": "sag",
+    "last_sources": [],
+    "router_trace": [
+      {
+        "action": "NEW_CER_QUERY",
+        "query": "arañitas en cultivo",
+        "rationale": "Usuario describe un problema técnico nuevo para buscar en CER.",
+        "ts": 1771526619
+      },
+      {
+        "action": "ASK_SAG",
+        "query": "arañitas",
+        "rationale": "Usuario rechaza opciones CER y busca alternativas, sugiriendo ir a SAG.",
+        "ts": 1771526669
+      }
+    ],
+    "close_reason": ""
+  }
+}

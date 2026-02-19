@@ -9,7 +9,6 @@ import logging
 from telegram import Update
 from telegram.ext import (
     Application,
-    CallbackQueryHandler,
     CommandHandler,
     MessageHandler,
     filters,
@@ -52,17 +51,6 @@ class TelegramBot:
 
         # ===== COMANDOS =====
         application.add_handler(CommandHandler("start", handlers.start_command))
-
-        # ===== CALLBACKS (BOTONES) =====
-        application.add_handler(
-            CallbackQueryHandler(handlers.menu_callback, pattern="^menu$")
-        )
-        application.add_handler(
-            CallbackQueryHandler(handlers.research_callback, pattern="^academic_research$")
-        )
-        application.add_handler(
-            CallbackQueryHandler(handlers.database_callback, pattern="^consult_database$")
-        )
 
         # ===== MENSAJES DE TEXTO =====
         # Router: decide si es consulta o mensaje por defecto

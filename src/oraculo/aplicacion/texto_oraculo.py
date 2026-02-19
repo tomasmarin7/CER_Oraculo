@@ -12,8 +12,8 @@ INTRO_ORACULO_CER = (
 )
 
 ACLARACION_ACCION = (
-    "No me quedó claro. ¿Prefieres que investigue en la base de ensayos del CER "
-    "o que busque información en productos registrados en el SAG?"
+    "Para avanzar necesito un poco más de contexto. "
+    "Cuéntame el cultivo y el problema específico que quieres revisar en ensayos CER."
 )
 
 
@@ -34,10 +34,8 @@ def construir_respuesta_chat_basica(mensaje_usuario: str) -> str:
         )
     if "gracias" in normalizado:
         return (
-            "De nada. Si quieres, te ayudo a revisar otro problema de cultivo "
-            "o una consulta sobre productos registrados en el SAG."
+            "De nada. Si quieres, revisamos otro problema de cultivo con ensayos CER."
         )
     return (
-        "Perfecto. Si quieres, te ayudo con una consulta técnica del CER "
-        "o con productos registrados en el SAG."
+        "Perfecto. Si quieres, te ayudo con otra consulta técnica de ensayos CER."
     )

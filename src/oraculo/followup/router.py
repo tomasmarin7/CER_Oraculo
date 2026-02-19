@@ -12,7 +12,7 @@ from ..providers.llm import generate_answer
 from .prompting import render_report_options
 
 GUIDED_FOLLOWUP_ROUTER_PROMPT_FILE = "guided_followup_router.md"
-VALID_ACTIONS = {"DETAIL_REPORTS", "NEW_RAG_QUERY", "ASK_SAG", "CHAT_REPLY", "CLARIFY"}
+VALID_ACTIONS = {"DETAIL_REPORTS", "NEW_RAG_QUERY", "ASK_PROBLEM", "ASK_SAG", "CHAT_REPLY", "CLARIFY"}
 logger = logging.getLogger(__name__)
 
 
@@ -32,6 +32,7 @@ def route_guided_followup(
     last_assistant_message: str,
     user_message: str,
     offered_reports: list[dict[str, Any]],
+    conversation_history: str,
     settings: Settings,
 ) -> GuidedFollowupDecision:
     started = time.perf_counter()
@@ -40,6 +41,7 @@ def route_guided_followup(
         last_assistant_message=last_assistant_message,
         user_message=user_message,
         offered_reports=offered_reports,
+        conversation_history=conversation_history,
     )
     try:
         raw = generate_answer(prompt, settings, system_instruction="", profile="router")
@@ -99,6 +101,7 @@ def _build_followup_router_prompt(
     last_assistant_message: str,
     user_message: str,
     offered_reports: list[dict[str, Any]],
+    conversation_history: str,
 ) -> str:
     template = cargar_plantilla_prompt(
         Path(__file__).resolve().parent / "prompts",
@@ -110,6 +113,7 @@ def _build_followup_router_prompt(
         .replace("{{last_assistant_message}}", last_assistant_message or "sin mensaje")
         .replace("{{user_message}}", user_message.strip())
         .replace("{{offered_reports}}", options_block)
+        .replace("{{conversation_history}}", conversation_history or "sin historial")
     ).strip()
 
 

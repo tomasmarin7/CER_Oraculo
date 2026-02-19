@@ -78,7 +78,7 @@ class ServicioConversacionOraculo:
         started = time.perf_counter()
         texto = (mensaje_usuario or "").strip()
         sesion = self.repositorio_sesiones.obtener_o_crear(user_id)
-        self._reportar_progreso(progress_callback, "Analizando tu mensaje...")
+        self._reportar_progreso(progress_callback, "Estoy revisando tu consulta para entender bien el problema...")
         logger.info(
             "🟢 Nuevo turno | estado=%s | entrada=%s chars",
             sesion.estado,
@@ -87,9 +87,6 @@ class ServicioConversacionOraculo:
         logger.info("👤 Usuario: %s", _preview_for_log(texto))
         if not texto:
             return RespuestaOraculo(texto="Por favor, escribe una consulta válida.")
-
-        registrar_mensaje_usuario(sesion, texto)
-        persist_session_archive(sesion)
 
         if bool(sesion.flow_data.get("pending_intro")):
             sesion.flow_data["pending_intro"] = False
@@ -105,9 +102,12 @@ class ServicioConversacionOraculo:
             )
             return RespuestaOraculo(texto=intro)
 
+        registrar_mensaje_usuario(sesion, texto)
+        persist_session_archive(sesion)
+
         self._reportar_progreso(
             progress_callback,
-            "Definiendo si corresponde busqueda CER, consulta SAG o seguimiento...",
+            "Definiendo el siguiente paso de la conversación...",
         )
         decision = route_global_action(
             sesion,
@@ -162,7 +162,7 @@ class ServicioConversacionOraculo:
             )
 
         if decision.action == "CHAT_REPLY":
-            self._reportar_progreso(progress_callback, "Redactando respuesta...")
+            self._reportar_progreso(progress_callback, "Estoy preparando la respuesta con lo que ya revisamos...")
             return self._cerrar_turno(
                 sesion,
                 construir_respuesta_chat_basica(texto),
@@ -172,7 +172,7 @@ class ServicioConversacionOraculo:
             )
 
         if decision.action == "CLARIFY":
-            self._reportar_progreso(progress_callback, "Aclarando tu consulta con el contexto actual...")
+            self._reportar_progreso(progress_callback, "Estoy preparando un mensaje para entenderte mejor...")
             return self._cerrar_turno(
                 sesion,
                 self._construir_clarificacion_contextual(
@@ -337,19 +337,18 @@ class ServicioConversacionOraculo:
         if last_question:
             return (
                 "Para entender bien tu contexto y no asumir mal: "
-                f"¿quieres que siga con \"{last_question}\" en ensayos CER, "
-                "o prefieres que lo busque en registros SAG?"
+                f"cuando dices \"{last_question}\", "
+                "¿qué cultivo y problema quieres priorizar?"
             )
         user_text = (mensaje_usuario or "").strip()
         if user_text:
             return (
                 "Necesito un poco más de contexto para ayudarte bien. "
-                f"Cuando dices \"{user_text}\", ¿quieres una recomendación basada en ensayos CER "
-                "o una búsqueda en productos registrados en SAG?"
+                f"Cuando dices \"{user_text}\", ¿te refieres a un cultivo, un problema específico "
+                "o a un producto puntual?"
             )
         return (
-            "Para avanzar sin mezclar contextos, ¿quieres que revisemos ensayos CER "
-            "o productos registrados en SAG?"
+            "Para avanzar, cuéntame el cultivo y el problema puntual que quieres revisar."
         )
 
     def _ultimo_mensaje_asistente(self, sesion: SesionChat) -> str:

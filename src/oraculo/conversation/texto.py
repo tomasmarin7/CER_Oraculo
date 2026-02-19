@@ -21,11 +21,6 @@ def historial_corto(sesion: SesionChat, max_items: int = 10) -> str:
     return "\n".join(lineas)
 
 
-def es_comando_menu(texto: str) -> bool:
-    tokens = {"menu", "menú", "inicio", "salir", "/start"}
-    return limpiar_texto(texto).lower() in tokens
-
-
 def ultimo_mensaje_usuario(sesion: SesionChat) -> str:
     for msg in reversed(sesion.mensajes):
         if msg.rol == "user":

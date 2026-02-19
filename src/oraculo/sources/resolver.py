@@ -49,7 +49,10 @@ class SourceRecord:
 
 class SourceResolver:
     def __init__(self, csv_path: Optional[str] = None) -> None:
-        self.csv_path = Path(csv_path) if csv_path else (_project_root() / "index.csv")
+        if csv_path:
+            self.csv_path = Path(csv_path)
+        else:
+            self.csv_path = _project_root() / "CER.csv"
         self._loaded = False
         self._by_pdf: Dict[str, SourceRecord] = {}
         self._by_meta: Dict[Tuple[str, str, str, str, str], SourceRecord] = {}
@@ -59,8 +62,8 @@ class SourceResolver:
             return
         if not self.csv_path.exists():
             raise FileNotFoundError(
-                f"No encontré index.csv en {self.csv_path}. "
-                f"Colócalo en la raíz del proyecto o pasa csv_path."
+                f"No encontré CSV de fuentes CER en {self.csv_path}. "
+                f"Colócalo en la raíz del proyecto (CER.csv) o pasa csv_path."
             )
 
         with self.csv_path.open("r", encoding="utf-8-sig", newline="") as f:
@@ -135,14 +138,20 @@ def format_sources_from_hits(hits: List[Dict[str, Any]]) -> str:
     Formatea las fuentes para Telegram con un estilo limpio y profesional.
     Solo muestra links, sin nombres de archivo ni detalles técnicos.
     """
-    resolver = get_source_resolver()
+    try:
+        resolver = get_source_resolver()
+    except FileNotFoundError:
+        return ""
 
     seen = set()
     lines: List[str] = []
 
     for h in hits:
         payload = h.get("payload") or {}
-        rec = resolver.resolve(payload)
+        try:
+            rec = resolver.resolve(payload)
+        except FileNotFoundError:
+            return ""
         if not rec:
             continue
 

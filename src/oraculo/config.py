@@ -119,9 +119,13 @@ class Settings(BaseSettings):
         validation_alias="RAG_MAX_DOC_CHAR_BUDGET",
     )
     rag_sag_top_k: int = Field(default=8, validation_alias="RAG_SAG_TOP_K")
-    sag_excel_path: str = Field(
-        default="SAG - copia.xlsx",
-        validation_alias="SAG_EXCEL_PATH",
+    cer_csv_path: str = Field(
+        default="CER.csv",
+        validation_alias="CER_CSV_PATH",
+    )
+    sag_csv_path: str = Field(
+        default="SAG.csv",
+        validation_alias=AliasChoices("SAG_CSV_PATH", "SAG_EXCEL_PATH"),
     )
 
     # ===== TELEGRAM BOT =====
