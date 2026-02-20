@@ -87,11 +87,24 @@ def _build_global_router_prompt(sesion: SesionChat, user_message: str) -> str:
         reports_lines.append(f"• {label}: {', '.join(products)}")
 
     offered_reports_text = "\n".join(reports_lines) if reports_lines else "sin opciones"
+    history_items = max(1, len(sesion.mensajes))
+    cer_router_context = str(sesion.flow_data.get("last_cer_router_context") or "").strip() or "sin contexto CER estructurado"
+    sag_router_context = str(sesion.flow_data.get("last_sag_router_context") or "").strip() or "sin contexto SAG estructurado"
     return (
         template.replace("{{estado_actual}}", str(sesion.estado))
         .replace("{{last_rag_used}}", sesion.last_rag_used)
         .replace("{{last_question}}", str(sesion.flow_data.get("last_question") or ""))
+        .replace("{{last_assistant_message}}", _last_assistant_message(sesion))
+        .replace("{{cer_router_context}}", cer_router_context)
+        .replace("{{sag_router_context}}", sag_router_context)
         .replace("{{offered_reports}}", offered_reports_text)
-        .replace("{{historial}}", historial_corto(sesion))
+        .replace("{{historial}}", historial_corto(sesion, max_items=history_items))
         .replace("{{mensaje_usuario}}", user_message)
     ).strip()
+
+
+def _last_assistant_message(sesion: SesionChat) -> str:
+    for msg in reversed(sesion.mensajes):
+        if msg.rol == "assistant":
+            return limpiar_texto(msg.texto)
+    return ""

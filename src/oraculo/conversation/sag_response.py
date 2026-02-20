@@ -37,6 +37,7 @@ class SagFlowResult:
     response: str = ""
     rag_tag: str = "sag"
     sources: list[str] = field(default_factory=list)
+    router_context: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -108,6 +109,7 @@ def generate_sag_response(
         return SagFlowResult(
             handled=True,
             response="No encontré productos en la base de datos de etiquetas con coincidencia directa para tu consulta.",
+            router_context="sin resultados SAG para la consulta",
         )
 
     # Construcción de contexto y generación de respuesta
@@ -115,7 +117,11 @@ def generate_sag_response(
         sag_hits, normalized_query, effective_user_message, product_hint, settings, progress_callback,
     )
     response = _prepend_standard_notice(response)
-    return SagFlowResult(handled=True, response=response)
+    return SagFlowResult(
+        handled=True,
+        response=response,
+        router_context=_build_router_context_snapshot(sag_hits),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -538,6 +544,21 @@ def _count_consolidated_products(hits: list[dict[str, Any]]) -> int:
         auth = str(payload.get("autorizacion_sag_numero_normalizado") or "N/D").strip()
         keys.add((normalize_text(auth), normalize_text(producto)))
     return len(keys)
+
+
+def _build_router_context_snapshot(hits: list[dict[str, Any]], limit: int = 20) -> str:
+    grouped = _group_hits_by_product(hits, detailed=True)
+    if not grouped:
+        return "sin contexto SAG consolidado"
+    ordered = sorted(grouped.values(), key=lambda r: normalize_text(r["producto"]))
+    lines: list[str] = []
+    for row in ordered[: max(1, int(limit))]:
+        lines.append(
+            f"- producto: {row['producto']} | autorizacion: {row['autorizacion']} "
+            f"| cultivo: {_render_values(row['cultivos'], max_items=5, max_len=60)} "
+            f"| objetivo: {_render_values(row['objetivos'], max_items=5, max_len=90)}"
+        )
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------

@@ -15,7 +15,8 @@ from typing import Any, Callable
 
 from ..aplicacion.texto_oraculo import INTRO_ORACULO_CER
 from ..config import Settings
-from ..followup import route_guided_followup
+from ..followup import render_report_options, route_guided_followup
+from ..providers.llm import generate_answer
 from ..rag.retriever import retrieve
 from .cer_response import (
     build_cer_first_response_from_hits,
@@ -113,11 +114,22 @@ def execute_guided_action_from_router(
         result = generate_sag_response(
             effective_query, settings, user_message=text, product_hint="", progress_callback=progress_callback,
         )
+        sesion.flow_data["last_sag_router_context"] = result.router_context
         return GuidedFlowResult(
             handled=result.handled, response=result.response, rag_tag=result.rag_tag, sources=result.sources,
         )
 
-    if action_norm in {"CHAT_REPLY", "CLARIFY"}:
+    if action_norm == "CHAT_REPLY":
+        contextual_reply = _build_contextual_chat_reply(
+            sesion=sesion,
+            user_message=text,
+            settings=settings,
+        )
+        if contextual_reply:
+            return GuidedFlowResult(handled=True, response=contextual_reply, rag_tag="none")
+        return try_handle_guided_flow(sesion, text, settings, top_k=top_k, progress_callback=progress_callback)
+
+    if action_norm == "CLARIFY":
         return try_handle_guided_flow(sesion, text, settings, top_k=top_k, progress_callback=progress_callback)
 
     return GuidedFlowResult(handled=False)
@@ -146,6 +158,7 @@ def _handle_problem_query(
     sesion.flow_data["last_doc_contexts"] = []
     sesion.flow_data["last_detail_doc_contexts"] = []
     sesion.flow_data["last_cer_seed_hits"] = serialize_seed_hits(hits)
+    sesion.flow_data["last_sag_router_context"] = ""
 
     if progress_callback:
         progress_callback("Estoy ordenando los ensayos encontrados para mostrártelos claro...")
@@ -155,6 +168,7 @@ def _handle_problem_query(
     )
     logger.info("📝 Flujo CER | listado preparado.")
     sesion.flow_data["offered_reports"] = report_options
+    sesion.flow_data["last_cer_router_context"] = render_report_options(report_options) if report_options else ""
 
     if report_options:
         sesion.estado = EstadoSesion.ESPERANDO_DETALLE_PRODUCTO
@@ -246,6 +260,7 @@ def _handle_product_detail_followup(
         result = generate_sag_response(
             sag_query, settings, user_message=user_message, product_hint=sag_product, progress_callback=progress_callback,
         )
+        sesion.flow_data["last_sag_router_context"] = result.router_context
         return GuidedFlowResult(
             handled=result.handled, response=result.response, rag_tag=result.rag_tag, sources=result.sources,
         )
@@ -322,6 +337,35 @@ def _handle_sag_followup(
     result = generate_sag_response(
         query, settings, user_message=user_message, product_hint="", progress_callback=progress_callback,
     )
+    sesion.flow_data["last_sag_router_context"] = result.router_context
     return GuidedFlowResult(
         handled=result.handled, response=result.response, rag_tag=result.rag_tag, sources=result.sources,
     )
+
+
+def _build_contextual_chat_reply(
+    *,
+    sesion: SesionChat,
+    user_message: str,
+    settings: Settings,
+) -> str:
+    history = render_recent_history(sesion, max_items=24)
+    offered_reports = sesion.flow_data.get("offered_reports") or []
+    cer_context = render_report_options(offered_reports) if offered_reports else "sin lista CER activa"
+    sag_context = str(sesion.flow_data.get("last_sag_router_context") or "").strip() or "sin contexto SAG reciente"
+
+    prompt = (
+        "Eres el asistente CER.\n"
+        "Responde usando SOLO el contexto entregado.\n"
+        "Si el usuario pregunta por qué mostraste una lista, explica el criterio de búsqueda según la conversación.\n"
+        "Si pregunta si la lista corresponde a un problema/cultivo, valida con contexto y responde directo.\n"
+        "Si no hay evidencia suficiente, pide una aclaración concreta en una sola pregunta.\n\n"
+        f"HISTORIAL:\n{history}\n\n"
+        f"LISTA_CER_ACTUAL:\n{cer_context}\n\n"
+        f"CONTEXTO_SAG_RECIENTE:\n{sag_context}\n\n"
+        f"MENSAJE_USUARIO:\n{user_message}\n"
+    )
+    try:
+        return (generate_answer(prompt, settings, system_instruction="", profile="router") or "").strip()
+    except Exception:
+        return ""

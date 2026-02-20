@@ -163,6 +163,24 @@ class ServicioConversacionOraculo:
 
         if decision.action == "CHAT_REPLY":
             self._reportar_progreso(progress_callback, "Estoy preparando la respuesta con lo que ya revisamos...")
+            contextual = execute_guided_action_from_router(
+                sesion,
+                texto,
+                settings,
+                action="CHAT_REPLY",
+                query="",
+                top_k=top_k,
+                progress_callback=progress_callback,
+            )
+            if contextual.handled and str(contextual.response or "").strip():
+                return self._cerrar_turno(
+                    sesion,
+                    contextual.response,
+                    rag_usado=contextual.rag_tag,
+                    fuentes=contextual.sources,
+                    started=started,
+                    fase="chat_reply_contextual",
+                )
             return self._cerrar_turno(
                 sesion,
                 construir_respuesta_chat_basica(texto),
