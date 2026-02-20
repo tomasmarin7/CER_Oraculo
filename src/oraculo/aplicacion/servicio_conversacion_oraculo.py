@@ -140,6 +140,8 @@ class ServicioConversacionOraculo:
                 settings,
                 action=decision.action,
                 query=decision.query,
+                selected_report_hints=decision.selected_reports or [],
+                selected_report_indexes=decision.selected_report_indexes or [],
                 top_k=top_k,
                 progress_callback=progress_callback,
             )
@@ -284,6 +286,8 @@ class ServicioConversacionOraculo:
                 "action": decision.action,
                 "query": decision.query,
                 "rationale": decision.rationale,
+                "selected_reports": list(decision.selected_reports or []),
+                "selected_report_indexes": list(decision.selected_report_indexes or []),
                 "ts": sesion.last_activity_ts,
             }
         )

@@ -44,10 +44,15 @@ def build_cer_first_response_from_hits(
     conversation_context: str,
     hits: list[dict[str, Any]],
     settings: Settings,
-) -> tuple[str, str, list[dict[str, Any]]]:
-    """Genera texto de listado, escenario detectado, y opciones de reporte."""
+) -> tuple[str, str, list[dict[str, Any]], list[DocContext]]:
+    """Genera texto de listado, escenario detectado, opciones y contexto overview."""
+    overview_by_doc_id = _build_overview_doc_context_by_doc_id(hits, settings)
     csv_seed_reports = _build_report_options_from_csv_query(settings, question, limit=12)
-    rag_csv_reports = _build_report_options_from_hits(hits, settings)
+    rag_csv_reports = _build_report_options_from_hits(
+        hits,
+        settings,
+        overview_by_doc_id=overview_by_doc_id,
+    )
     offered_reports = _merge_report_options(rag_csv_reports, csv_seed_reports)
     if not offered_reports:
         text = (
@@ -56,7 +61,7 @@ def build_cer_first_response_from_hits(
             "este problema en su etiqueta. ¿Lo hago?\n"
             "Si prefieres no revisar la base de datos de etiquetas, dime otra consulta y buscamos en ensayos CER."
         )
-        return text, "no_cer", []
+        return text, "no_cer", [], []
 
     species_hints = detect_cer_entities(settings.cer_csv_path, question).get("especies", set())
     species_hints_norm = {normalize_text(s) for s in species_hints if normalize_text(s)}
@@ -90,11 +95,14 @@ def build_cer_first_response_from_hits(
     except Exception:
         text = ""
     if not text:
-        return _fallback_listing_text(question, prompt_reports)
+        return _fallback_listing_text(question, prompt_reports, overview_by_doc_id)
+    text = _normalize_listing_output_format(text)
 
     ordered_reports = _reorder_reports_from_listed_text(text, prompt_reports)
     scenario = _detect_listing_scenario(text)
-    return text, scenario, ordered_reports or prompt_reports
+    final_reports = ordered_reports or prompt_reports
+    overview_contexts = _collect_overview_contexts_from_reports(final_reports, overview_by_doc_id)
+    return text, scenario, final_reports, overview_contexts
 
 
 # ---------------------------------------------------------------------------
@@ -196,6 +204,9 @@ def _retrieve_doc_contexts_for_detail(
                 candidate_hits, settings,
                 top_docs=max(1, min(len(selected_doc_ids) or top_k, int(settings.rag_top_docs))),
             )
+        if selected_doc_ids:
+            # Si ya hay selección explícita, no hacer retrieve abierto para evitar mezcla.
+            return []
 
     _refined, hits = retrieve(
         question, settings, top_k=top_k,
@@ -235,6 +246,7 @@ def generate_conversational_followup_response(
     logger.info("💬 Follow-up | respondiendo con contexto conversacional.")
     if progress_callback:
         progress_callback("Estoy preparando una respuesta con lo que ya revisamos...")
+
     prompt = build_followup_chat_prompt(
         last_question=last_question,
         last_assistant_message=last_assistant_message,
@@ -271,6 +283,7 @@ def _select_doc_contexts_for_followup(
         return []
 
     selected_doc_ids: set[str] = set()
+    explicit_selection = bool(selected_report_indexes)
 
     # Selección por índices del router
     for idx in (selected_report_indexes or []):
@@ -282,6 +295,7 @@ def _select_doc_contexts_for_followup(
         idx = int(match)
         if 1 <= idx <= len(offered_reports):
             selected_doc_ids.update(_doc_ids_from_report(offered_reports[idx - 1]))
+            explicit_selection = True
 
     # "todos"
     if any(tok in combined for tok in ("todos", "todas", "ambos", "ambas")):
@@ -299,6 +313,7 @@ def _select_doc_contexts_for_followup(
         terms = ordinal_map.get(idx, ())
         if any(re.search(rf"\b{re.escape(t)}\b", combined) for t in terms):
             selected_doc_ids.update(_doc_ids_from_report(report))
+            explicit_selection = True
 
     # Mención de etiqueta o producto
     for report in offered_reports:
@@ -307,6 +322,17 @@ def _select_doc_contexts_for_followup(
         terms = [t for t in [label_norm, *products_norm] if t]
         if terms and any(t in combined for t in terms):
             selected_doc_ids.update(_doc_ids_from_report(report))
+            explicit_selection = True
+
+    # Si solo se ofreció un informe CER, anclar el detalle a ese informe
+    # para evitar mezclar contextos/fuentes de otras coincidencias semánticas.
+    if not explicit_selection and not selected_doc_ids and len(offered_reports) == 1:
+        selected_doc_ids.update(_doc_ids_from_report(offered_reports[0]))
+        explicit_selection = True
+
+    if explicit_selection and selected_doc_ids:
+        filtered = [dc for dc in doc_contexts if dc.doc_id in selected_doc_ids]
+        return _prioritize_for_product_objective(filtered) if filtered else []
 
     # Match por producto en contextos
     msg_tokens = [t for t in re.findall(r"[a-z0-9áéíóúñ]+", combined) if len(t) >= 4]
@@ -360,6 +386,9 @@ def _collect_selected_doc_ids(
         terms = [t for t in [label, *products] if t]
         if terms and any(t in combined for t in terms):
             selected.update(_doc_ids_from_report(report))
+
+    if not selected and len(offered_reports) == 1:
+        selected.update(_doc_ids_from_report(offered_reports[0]))
     return selected
 
 
@@ -431,6 +460,8 @@ def _parece_pedir_ensayo_especifico(text: str) -> bool:
 def _build_report_options_from_hits(
     hits: list[dict[str, Any]],
     settings: Settings,
+    *,
+    overview_by_doc_id: dict[str, DocContext] | None = None,
 ) -> list[dict[str, Any]]:
     index = load_cer_index(settings.cer_csv_path)
     by_pdf = {normalize_text(rec.pdf): rec for rec in index.records if normalize_text(rec.pdf)}
@@ -462,20 +493,45 @@ def _build_report_options_from_hits(
                 if rec is not None:
                     break
         if rec is None:
-            continue
-
-        producto = _display_value(rec.producto)
-        cliente = _display_value(rec.cliente)
-        temporada = _display_value(rec.temporada)
-        especie = _display_value(rec.especie)
-        variedad = _display_value(rec.variedad)
+            # Fallback robusto: si no hay match CSV exacto para doc/pdf,
+            # construir opción desde payload de Qdrant para no perder evidencia CER real.
+            producto = _display_value(payload.get("producto"))
+            cliente = _display_value(payload.get("cliente"))
+            temporada = _display_value(payload.get("temporada"))
+            especie = _display_value(payload.get("especie"))
+            variedad = _display_value(payload.get("variedad"))
+            source = "rag_payload"
+        else:
+            producto = _display_value(rec.producto)
+            cliente = _display_value(rec.cliente)
+            temporada = _display_value(rec.temporada)
+            especie = _display_value(rec.especie)
+            variedad = _display_value(rec.variedad)
+            source = "rag"
 
         label = f"{producto} ({especie}, {variedad}, {temporada})"
+        doc_ids = []
+        if doc_id:
+            doc_ids.append(doc_id)
+        if pdf:
+            doc_ids.extend(_doc_id_candidates_from_pdf(pdf))
+        if rec is not None:
+            doc_ids.extend(_doc_id_candidates_from_pdf(rec.pdf))
+        unique_doc_ids: list[str] = []
+        seen_doc_id_keys: set[str] = set()
+        for item in doc_ids:
+            clean = str(item or "").strip()
+            key = normalize_text(clean)
+            if not clean or key in seen_doc_id_keys:
+                continue
+            seen_doc_id_keys.add(key)
+            unique_doc_ids.append(clean)
         options.append({
-            "label": label, "products": [producto], "doc_ids": [doc_id] if doc_id else [],
+            "label": label, "products": [producto], "doc_ids": unique_doc_ids,
             "producto": producto, "cliente": cliente, "temporada": temporada,
             "especie": especie, "variedad": variedad,
-            "source": "rag",
+            "overview": _extract_overview_text(overview_by_doc_id.get(doc_id)) if overview_by_doc_id and doc_id else "",
+            "source": source,
         })
 
     # Deduplicar
@@ -493,6 +549,73 @@ def _build_report_options_from_hits(
             seen_keys.add(key)
             unique.append(opt)
     return unique
+
+
+def _build_overview_doc_context_by_doc_id(
+    hits: list[dict[str, Any]],
+    settings: Settings,
+) -> dict[str, DocContext]:
+    if not hits:
+        return {}
+    top_docs = max(1, len({str((h.get("payload") or {}).get("doc_id") or "").strip() for h in hits if str((h.get("payload") or {}).get("doc_id") or "").strip()}))
+    doc_contexts = build_doc_contexts_from_hits(hits, settings, top_docs=top_docs)
+    out: dict[str, DocContext] = {}
+    for dc in doc_contexts:
+        doc_id = str(dc.doc_id or "").strip()
+        if doc_id:
+            out[doc_id] = dc
+    return out
+
+
+def _collect_overview_contexts_from_reports(
+    report_options: list[dict[str, Any]],
+    overview_by_doc_id: dict[str, DocContext],
+) -> list[DocContext]:
+    out: list[DocContext] = []
+    seen: set[str] = set()
+    for report in report_options:
+        for doc_id in _doc_ids_from_report(report):
+            if doc_id in seen:
+                continue
+            ctx = overview_by_doc_id.get(doc_id)
+            if ctx is None:
+                continue
+            seen.add(doc_id)
+            out.append(ctx)
+            break
+    return out
+
+
+def _extract_overview_text(doc_context: DocContext | None) -> str:
+    if doc_context is None:
+        return ""
+
+    candidates: list[str] = []
+    for chunk in doc_context.chunks:
+        chunk_type = normalize_text(str(chunk.get("chunk_type") or ""))
+        section = normalize_text(str(chunk.get("section_norm") or ""))
+        text = str(chunk.get("text") or "").strip()
+        if not text:
+            continue
+        if chunk_type in {"doc_overview", "conclusion_overview"}:
+            candidates.append(text)
+            continue
+        if any(token in section for token in ("objetivo", "resumen", "conclusion", "conclusiones", "objective", "abstract")):
+            candidates.append(text)
+
+    if not candidates:
+        for chunk in doc_context.chunks[:2]:
+            text = str(chunk.get("text") or "").strip()
+            if text:
+                candidates.append(text)
+                break
+
+    if not candidates:
+        return ""
+
+    merged = " ".join(candidates)
+    merged = re.sub(r"\s+", " ", merged).strip()
+    return merged[:420]
 
 
 def _merge_report_options(
@@ -674,6 +797,7 @@ def _build_listar_ensayos_prompt(
                 f"- variedad: {report.get('variedad') or 'N/D'}\n"
                 f"- match_scope: {report.get('match_scope') or 'query_match'}\n"
                 f"- inclusion_reason: {report.get('inclusion_reason') or 'N/D'}\n"
+                f"- overview: {report.get('overview') or 'N/D'}\n"
                 f"- doc_ids: {', '.join(_doc_ids_from_report(report)) or 'N/D'}"
             )
         )
@@ -775,10 +899,49 @@ def _detect_listing_scenario(text: str) -> str:
     return "direct"
 
 
+def _normalize_listing_output_format(text: str) -> str:
+    lines = [line.rstrip() for line in (text or "").splitlines()]
+    if not lines:
+        return text
+    first = lines[0].strip()
+    is_listing = (
+        first.startswith("Encontré estos ensayos del CER para")
+        or first.startswith("Para ")
+    )
+    if not is_listing:
+        return text
+
+    idx = 1
+    while idx < len(lines) and not lines[idx].strip():
+        idx += 1
+
+    bullets: list[str] = []
+    while idx < len(lines):
+        current = lines[idx].strip()
+        if not current:
+            idx += 1
+            continue
+        if current.startswith("• "):
+            bullets.append(current)
+            idx += 1
+            continue
+        break
+
+    if not bullets:
+        return text
+
+    remainder = [line.strip() for line in lines[idx:] if line.strip()]
+    out_text = first + "\n" + "\n\n".join(bullets)
+    if remainder:
+        out_text += "\n\n" + "\n".join(remainder)
+    return out_text.strip()
+
+
 def _fallback_listing_text(
     question: str,
     report_options: list[dict[str, Any]],
-) -> tuple[str, str, list[dict[str, Any]]]:
+    overview_by_doc_id: dict[str, DocContext],
+) -> tuple[str, str, list[dict[str, Any]], list[DocContext]]:
     lines = [
         (
             f"• {r.get('producto') or 'N/D'} | {r.get('cliente') or 'N/D'} | "
@@ -800,7 +963,7 @@ def _fallback_listing_text(
         "Si tampoco quieres revisar la base de datos de etiquetas, dime otro problema o cultivo "
         "y hacemos una nueva búsqueda en ensayos CER."
     )
-    return text, "direct", report_options
+    return text, "direct", report_options, _collect_overview_contexts_from_reports(report_options, overview_by_doc_id)
 
 
 def _extract_species_and_season_from_label(label: str) -> tuple[str, str]:
@@ -834,7 +997,11 @@ def _annotate_inclusion_logic(
         source = normalize_text(str(report.get("source") or "")) or "unknown"
         species_norm = normalize_text(str(report.get("especie") or ""))
         has_crop_hint = bool(species_hints_norm)
-        is_direct_crop = bool(has_crop_hint and species_norm and species_norm in species_hints_norm)
+        species_roots = token_roots(species_norm)
+        is_direct_crop = bool(has_crop_hint and species_norm and (
+            species_norm in species_hints_norm
+            or any(species_roots and (species_roots & token_roots(hint)) for hint in species_hints_norm)
+        ))
 
         if is_direct_crop:
             report["match_scope"] = "direct_crop"

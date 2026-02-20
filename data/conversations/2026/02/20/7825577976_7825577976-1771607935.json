@@ -1,0 +1,57 @@
+{
+  "session_id": "7825577976_7825577976-1771607935",
+  "user_id": "7825577976:7825577976",
+  "channel": "telegram",
+  "started_at": "2026-02-20T17:18:55+00:00",
+  "ended_at": null,
+  "status": "open",
+  "state": "WAITING_PRODUCT_DETAIL",
+  "last_activity_ts": "2026-02-20T17:20:13+00:00",
+  "expire_at": "2026-02-20T17:35:13+00:00",
+  "turns": [
+    {
+      "ts": "2026-02-20T17:18:55+00:00",
+      "role": "assistant",
+      "text": "*Oráculo Agrónomo CER* Soy un asistente del Centro de Evaluación Rosario (CER). Te ayudo a revisar qué productos hemos ensayado en cultivos y plagas específicas, y a resumirte resultados, dosis y condiciones de ensayo. Cuéntame cuál es tu problema con el cultivo o qué información necesitas."
+    },
+    {
+      "ts": "2026-02-20T17:19:07+00:00",
+      "role": "user",
+      "text": "Dame todos los ensayos de durazno"
+    },
+    {
+      "ts": "2026-02-20T17:19:35+00:00",
+      "role": "assistant",
+      "text": "Encontré estos ensayos del CER para durazno: • ORIUS 43 SC, CAPTAN 80 WG Y CAPTAN 83 WP | Adama | 2016-2017 | Durazno • ZHIMAD | Humic | 2017-2018 | Durazno • Ca APPLY | BioApply | 2019-2020 | Durazno ¿Sobre cuáles ensayos quieres que te detalle más? Si ninguno te sirve, puedo buscar productos en nuestra base de datos de etiquetas que indiquen ese problema en su etiqueta. Si tampoco quieres revisar la base de datos de etiquetas, dime otro problema o cultivo y hacemos una nueva búsqueda en ensayos CER."
+    },
+    {
+      "ts": "2026-02-20T17:19:48+00:00",
+      "role": "user",
+      "text": "De que se trata cada ensayo?"
+    },
+    {
+      "ts": "2026-02-20T17:20:13+00:00",
+      "role": "assistant",
+      "text": "Claro, aquí tienes el detalle técnico de cada uno de los ensayos en durazno. ─────── *Informe 1* (2016-2017, Durazno, Pomona) *Ubicacion del ensayo:* • Comuna: Requinoa • Localidad: no especificado • Region: Libertador Bernardo O'Higgins • Ubicacion reportada: camino al Abra s/n *Objetivo del ensayo:* • Evaluar el efecto de los productos Orius 43 SC, Captan 80 WG y Captan 83 WP en el control de la pudrición ácida (*Geotrichum candidum*). *Tratamiento evaluado:* • Producto: Orius 43 SC, Captan 80 WG y Captan 83 WP (aplicados solos y en mezcla). • Dosis: Orius 43 SC a 70 cc/hL; Captan 80 WG y 83 WP a 180 g/hL. • Aplicacion: 2 aplicaciones foliares, realizadas 15 y 5 días antes de la cosecha. *Resultados observados:* • En precosecha, todos los tratamientos fungicidas redujeron la incidencia de pudrición ácida. La mezcla de *Captan 83 WP + Orius 43 SC* fue la que presentó el menor porcentaje de la enfermedad. • En poscosecha, tras 30 días en frío, las mezclas de *Captan + Orius* (tanto 80 WG como 83 WP) no presentaron desarrollo de la enfermedad al momento de sacar la fruta. *Lectura practica:* • Las aplicaciones de precosecha con estos fungicidas, especialmente las mezclas de Captan + Orius, son efectivas para controlar la pudrición ácida en campo y reducir su desarrollo durante el almacenaje en frío. ─────── *Informe 2* (2017-2018, Durazno, Zee Lady) *Ubicacion del ensayo:* • Comuna: Rengo • Localidad: Rosario • Region: O'Higgins • Ubicacion reportada: no especificado *Objetivo del ensayo:* • Evaluar la eficacia del producto Zhimad como corrector de carencias de Manganeso (Mn) y Zinc (Zn). *Tratamiento evaluado:* • Producto: Zhimad • Dosis: 2,25 L/ha • Aplicacion: 3 aplicaciones foliares, la primera en brote de 10 cm y las siguientes cada 30 días. *Resultados observados:* • La aplicación de Zhimad aumentó la concentración foliar de Zinc y Manganeso en comparación con el testigo sin aplicación. • No se observó ningún tipo de fitotoxicidad en follaje ni en frutos. • El producto de referencia comercial, aplicado a menor dosis (0,675 L/ha), logró un aumento significativamente mayor de Zn y Mn en las hojas. *Lectura practica:* • Zhimad es una alternativa segura para corregir deficiencias de Zinc y Manganeso en duraznero, aunque otros productos comerciales podrían ser más eficientes para aumentar la concentración de estos nutrientes en la hoja. ─────── *Informe 3* (2019-2020, Durazno, Pomona) *Ubicacion del ensayo:* • Comuna: no especificado • Localidad: Requínoa • Region: O'higgins • Ubicacion reportada: no especificado *Objetivo del ensayo:* • Evaluar el efecto de la aplicación foliar de Ca Apply en el contenido de calcio en los frutos. *Tratamiento evaluado:* • Producto: Ca Apply • Dosis: 0,5 L/ha • Aplicacion: 3 aplicaciones foliares, realizadas 30, 20 y 10 días antes de la cosecha. *Resultados observados:* • Las aplicaciones de Ca Apply aumentaron de forma significativa el *calcio total* en la fruta, con resultados similares a los del calcio comercial de referencia. • Ca Apply también incrementó la proporción de *calcio ligado* en la fruta, que es el calcio que forma parte de las paredes celulares y da estructura a los tejidos. *Lectura practica:* • Las aplicaciones de Ca Apply en precosecha son una estrategia efectiva para aumentar la concentración de calcio en la fruta, lo que puede mejorar la estabilidad de los tejidos y potencialmente la vida de poscosecha. Espero que esta información detallada te sea de utilidad. ─────────────────────── *Fuentes:* • 2016-2017 - ORIUS 43 SC, CAPTAN 80 WG Y CAPTAN 83 WP - Durazno Pomona: https://ceresearch.com/wp-content/uploads/2022/08/Producto_-Orius-43-SC-2a9059f426ef7204d43fc5e29aba8189.pdf • 2017-2018 - ZHIMAD - Durazno Zee lady: https://ceresearch.com/wp-content/uploads/2022/08/Producto_-Zhimad-64c5f600070bf0c58875bedc095ce9ad.pdf • 2017-2018 - ZHIMAD - Ciruelo japonés Angeleno: https://ceresearch.com/wp-content/uploads/2022/08/Producto_-Portaliq-bd70ce770803acdda10bb74b462276ab-1.pdf • 2019-2020 - Ca APPLY - Durazno Pomona: https://ceresearch.com/wp-content/uploads/2022/08/Producto_-Ca-Apply-1fa5bb5c8be2e7e0d0ef0594c651111f.pdf • 2019-2020 - Ca APPLY - Cerezo Lapins: https://ceresearch.com/wp-content/uploads/2022/08/Producto_-CA-Apply-448b69ada6a6ddc83a8a3b5b2f6c1d52.pdf"
+    }
+  ],
+  "meta": {
+    "last_rag_used": "cer",
+    "last_sources": [],
+    "router_trace": [
+      {
+        "action": "NEW_CER_QUERY",
+        "query": "ensayos de durazno",
+        "rationale": "El usuario pide ensayos de un cultivo específico, lo que es una nueva consulta técnica.",
+        "ts": 1771607947
+      },
+      {
+        "action": "CLARIFY",
+        "query": "",
+        "rationale": "El usuario pide detalle de 'cada ensayo' sin especificar, requiere clarificación.",
+        "ts": 1771607988
+      }
+    ],
+    "close_reason": ""
+  }
+}

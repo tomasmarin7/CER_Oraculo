@@ -1,0 +1,43 @@
+{
+  "session_id": "7825577976_7825577976-1771622313",
+  "user_id": "7825577976:7825577976",
+  "channel": "telegram",
+  "started_at": "2026-02-20T21:18:33+00:00",
+  "ended_at": null,
+  "status": "open",
+  "state": "WAITING_PROBLEM",
+  "last_activity_ts": "2026-02-20T21:19:01+00:00",
+  "expire_at": "2026-02-20T21:34:01+00:00",
+  "turns": [
+    {
+      "ts": "2026-02-20T21:18:33+00:00",
+      "role": "assistant",
+      "text": "*Oráculo Agrónomo CER* Soy un asistente del Centro de Evaluación Rosario (CER). Te ayudo a revisar qué productos hemos ensayado en cultivos y plagas específicas, y a resumirte resultados, dosis y condiciones de ensayo. Cuéntame cuál es tu problema con el cultivo o qué información necesitas."
+    },
+    {
+      "ts": "2026-02-20T21:18:48+00:00",
+      "role": "user",
+      "text": "que productos han ensayado para aumentar el calibre?"
+    },
+    {
+      "ts": "2026-02-20T21:19:01+00:00",
+      "role": "assistant",
+      "text": "Entendido. Para poder buscar en nuestra base de ensayos sobre aumento de calibre, por favor, indícame en qué cultivo estás interesado."
+    }
+  ],
+  "meta": {
+    "last_rag_used": "none",
+    "last_sources": [],
+    "router_trace": [
+      {
+        "action": "CLARIFY",
+        "query": "",
+        "rationale": "Falta el cultivo para buscar ensayos de aumento de calibre.",
+        "selected_reports": [],
+        "selected_report_indexes": [],
+        "ts": 1771622328
+      }
+    ],
+    "close_reason": ""
+  }
+}

@@ -1,0 +1,119 @@
+{
+  "session_id": "7825577976_7825577976-1771617022",
+  "user_id": "7825577976:7825577976",
+  "channel": "telegram",
+  "started_at": "2026-02-20T19:50:22+00:00",
+  "ended_at": null,
+  "status": "open",
+  "state": "WAITING_PRODUCT_DETAIL",
+  "last_activity_ts": "2026-02-20T19:56:40+00:00",
+  "expire_at": "2026-02-20T20:11:40+00:00",
+  "turns": [
+    {
+      "ts": "2026-02-20T19:50:22+00:00",
+      "role": "assistant",
+      "text": "*Oráculo Agrónomo CER* Soy un asistente del Centro de Evaluación Rosario (CER). Te ayudo a revisar qué productos hemos ensayado en cultivos y plagas específicas, y a resumirte resultados, dosis y condiciones de ensayo. Cuéntame cuál es tu problema con el cultivo o qué información necesitas."
+    },
+    {
+      "ts": "2026-02-20T19:50:34+00:00",
+      "role": "user",
+      "text": "quiero aumentar el calibre de mis frutos"
+    },
+    {
+      "ts": "2026-02-20T19:50:49+00:00",
+      "role": "assistant",
+      "text": "Entendido, tu objetivo es aumentar el calibre de los frutos. Para poder buscar ensayos relevantes del CER, por favor, indícame en qué cultivo necesitas esta información."
+    },
+    {
+      "ts": "2026-02-20T19:50:53+00:00",
+      "role": "user",
+      "text": "cerezo"
+    },
+    {
+      "ts": "2026-02-20T19:51:25+00:00",
+      "role": "assistant",
+      "text": "Encontré estos ensayos del CER para aumentar el calibre de frutos en cerezo: • X-CYTE | Corteva Biologicals | 2024-2025 | Cerezo • STIMULATE FRUIT SIZER | Stoller | 2022-2023 | Cerezo • X-CYTE | Corteva Biologicals | 2023-2024 | Cerezo • KELPAK | Kelpak | 2015-2016 | Cerezo • SPURT-L y SPURT-L DUST | Agrícola Terra | 2023 – 2024 | Cerezo • LIGHT UP | Adama | 2023 – 2024 | Cerezo • BAYFOLAN | Bayer | 2020-2021 | Cerezo • SYNCRON | Tattersall / Daymsa | 2020-2021 | Cerezo • BAYFOLAN | Bayer | 2022-2023 | Cerezo • MACRTÚNEL TOTAL VENT | Haygrove | 2024-2025 | Cerezo • RAD BOOSTS | Rad | 2023 – 2024 | Cerezos • CITOBLOOM | Biogrow | 2022-2023 | Cerezo ¿Sobre cuáles ensayos quieres que te detalle más? Si ninguno te sirve, puedo buscar productos en nuestra base de datos de etiquetas que indiquen ese problema en su etiqueta. Si tampoco quieres revisar la base de datos de etiquetas, dime otro problema o cultivo y hacemos una nueva búsqueda en ensayos CER."
+    },
+    {
+      "ts": "2026-02-20T19:51:55+00:00",
+      "role": "user",
+      "text": "y tienes para nectarin?"
+    },
+    {
+      "ts": "2026-02-20T19:52:25+00:00",
+      "role": "assistant",
+      "text": "Encontré estos ensayos del CER para aumentar calibre de frutos: • STIMULATE FRUIT SIZER | Corteva Biologicals | 2023 – 2024 | Nectarín ¿Sobre cuáles ensayos quieres que te detalle más? Si ninguno te sirve, puedo buscar productos en nuestra base de datos de etiquetas que indiquen ese problema en su etiqueta. Si tampoco quieres revisar la base de datos de etiquetas, dime otro problema o cultivo y hacemos una nueva búsqueda en ensayos CER."
+    },
+    {
+      "ts": "2026-02-20T19:52:38+00:00",
+      "role": "user",
+      "text": "dame mas informacion de ese ensayo"
+    },
+    {
+      "ts": "2026-02-20T19:52:57+00:00",
+      "role": "assistant",
+      "text": "Claro, aquí tienes el detalle técnico del ensayo sobre Stimulate Fruit Sizer en nectarín. ─────── *Informe 1* (2023 – 2024, Nectarín, Bright Pearl) *Ubicacion del ensayo:* • Comuna: Requínoa • Localidad: no especificado • Region: Libertador Bernardo O'Higgins • Ubicacion reportada: Agrícola La Ponderosa *Objetivo del ensayo:* • Evaluar el efecto de Stimulate Fruit Sizer sobre el calibre y calidad de la fruta. *Tratamiento evaluado:* • Producto: Stimulate Fruit Sizer • Dosis: 100 mL/hL (equivalente a 1,5 L/ha con un mojamiento de 1500 L/ha) • Aplicacion: 3 aplicaciones en los siguientes momentos: • Plena flor • Caída de pétalos • 7 días después de caída de pétalos *Resultados observados:* • No se encontraron diferencias significativas en rendimiento, carga frutal, peso de fruto ni calibre promedio entre las plantas tratadas con Stimulate Fruit Sizer y las plantas del grupo control (sin aplicación). • Tampoco se observaron efectos en los parámetros de calidad como firmeza, sólidos solubles (°Brix) o materia seca. *Lectura practica:* • Bajo las condiciones específicas de este ensayo (variedad, clima, manejo), la aplicación de Stimulate Fruit Sizer no generó una mejora medible en el calibre ni en la calidad de la fruta en comparación con no aplicar nada. Si necesitas revisar otro ensayo o buscar alternativas, solo dímelo. ─────────────────────── *Fuentes:* • 2023 – 2024 - STIMULATE FRUIT SIZER - Nectarín Bright pearl: https://ceresearch.com/wp-content/uploads/2024/10/2324098.-INFORME.-CORTEVA-BIOLOGICALS.-STIMULATE-FRUIT-SIZER.-CALIBRE-NECTARIN.pdf • 2022-2023 - STIMULATE FRUIT SIZER - Cerezo Santina: https://ceresearch.com/wp-content/uploads/2023/08/2223074.-INFORME.-STOLLER.-STIMULATE-FRUIT-SIZER.-CALIDAD-DE-FRUTA-CEREZO.pdf"
+    },
+    {
+      "ts": "2026-02-20T19:56:23+00:00",
+      "role": "user",
+      "text": "cual seria la dosis mas efectiva de ese producto?"
+    },
+    {
+      "ts": "2026-02-20T19:56:40+00:00",
+      "role": "assistant",
+      "text": "En el ensayo de nectarín se evaluó una única dosis de *100 mL/hL*. Bajo las condiciones de ese estudio, esta dosis no resultó efectiva para aumentar el calibre en comparación con el tratamiento control."
+    }
+  ],
+  "meta": {
+    "last_rag_used": "none",
+    "last_sources": [],
+    "router_trace": [
+      {
+        "action": "CLARIFY",
+        "query": "",
+        "rationale": "Falta el cultivo para buscar ensayos CER relevantes.",
+        "selected_reports": [],
+        "selected_report_indexes": [],
+        "ts": 1771617034
+      },
+      {
+        "action": "NEW_CER_QUERY",
+        "query": "aumentar calibre frutos cerezo",
+        "rationale": "Usuario especifica cultivo para búsqueda de calibre de frutos.",
+        "selected_reports": [],
+        "selected_report_indexes": [],
+        "ts": 1771617053
+      },
+      {
+        "action": "NEW_CER_QUERY",
+        "query": "aumentar calibre frutos nectarin",
+        "rationale": "El usuario pide una nueva búsqueda CER para otro cultivo.",
+        "selected_reports": [],
+        "selected_report_indexes": [],
+        "ts": 1771617115
+      },
+      {
+        "action": "DETAIL_FROM_LIST",
+        "query": "",
+        "rationale": "El usuario pide más información del ensayo ofrecido.",
+        "selected_reports": [
+          "STIMULATE FRUIT SIZER"
+        ],
+        "selected_report_indexes": [
+          1
+        ],
+        "ts": 1771617158
+      },
+      {
+        "action": "CHAT_REPLY",
+        "query": "",
+        "rationale": "El usuario pregunta por la dosis más efectiva de un producto ya detallado, lo cual se puede responder con el contexto actual.",
+        "selected_reports": [],
+        "selected_report_indexes": [],
+        "ts": 1771617383
+      }
+    ],
+    "close_reason": ""
+  }
+}

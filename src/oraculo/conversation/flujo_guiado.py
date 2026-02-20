@@ -10,31 +10,31 @@ Orquesta las interacciones CER y SAG delegando a módulos especializados:
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from ..aplicacion.texto_oraculo import INTRO_ORACULO_CER
 from ..config import Settings
-from ..followup import render_report_options, route_guided_followup
+from ..followup import render_report_options
 from ..providers.llm import generate_answer
 from ..rag.retriever import retrieve
 from ..sources.cer_csv_lookup import build_cer_csv_hints_block
 from .cer_response import (
     build_cer_first_response_from_hits,
-    build_context_block,
     generate_cer_detail_followup_response,
     generate_conversational_followup_response,
 )
 from .flow_helpers import (
     build_followup_clarify_text,
     deserialize_doc_contexts,
-    es_pregunta_sobre_contexto_actual,
     is_affirmative,
     is_negative,
     last_assistant_message,
     looks_like_problem_query,
     render_recent_history,
     serialize_seed_hits,
+    serialize_doc_contexts,
 )
 from .modelos import EstadoSesion, SesionChat
 from .sag_response import generate_sag_response
@@ -90,6 +90,8 @@ def execute_guided_action_from_router(
     *,
     action: str,
     query: str = "",
+    selected_report_hints: list[str] | None = None,
+    selected_report_indexes: list[int] | None = None,
     top_k: int = 8,
     progress_callback: Callable[[str], None] | None = None,
 ) -> GuidedFlowResult:
@@ -103,11 +105,25 @@ def execute_guided_action_from_router(
 
     if action_norm == "DETAIL_FROM_LIST":
         sesion.estado = EstadoSesion.ESPERANDO_DETALLE_PRODUCTO
-        return _handle_product_detail_followup(sesion, text, settings, top_k, progress_callback=progress_callback)
+        return _handle_product_detail_followup(
+            sesion,
+            text,
+            settings,
+            top_k,
+            forced_action="DETAIL_FROM_LIST",
+            selected_report_hints=selected_report_hints,
+            selected_report_indexes=selected_report_indexes,
+            progress_callback=progress_callback,
+        )
 
     if action_norm == "CHAT_REPLY" and sesion.estado == EstadoSesion.ESPERANDO_DETALLE_PRODUCTO:
         return _handle_product_detail_followup(
             sesion, text, settings, top_k, forced_action="CHAT_REPLY", progress_callback=progress_callback,
+        )
+
+    if action_norm == "CLARIFY" and sesion.estado == EstadoSesion.ESPERANDO_DETALLE_PRODUCTO:
+        return _handle_product_detail_followup(
+            sesion, text, settings, top_k, forced_action="CLARIFY", progress_callback=progress_callback,
         )
 
     if action_norm == "ASK_SAG":
@@ -171,7 +187,7 @@ def _handle_problem_query(
     if progress_callback:
         progress_callback("Estoy ordenando los ensayos encontrados para mostrártelos claro...")
 
-    response_text, scenario, report_options = build_cer_first_response_from_hits(
+    response_text, scenario, report_options, overview_contexts = build_cer_first_response_from_hits(
         question=question,
         refined_query=_refined_query,
         conversation_context=render_recent_history(sesion, max_items=12),
@@ -180,8 +196,11 @@ def _handle_problem_query(
     )
     logger.info("📝 Flujo CER | listado preparado.")
     sesion.flow_data["offered_reports"] = report_options
-    sesion.flow_data["last_cer_router_context"] = (
-        render_report_options(report_options, include_inclusion_reason=True) if report_options else ""
+    sesion.flow_data["last_doc_contexts"] = serialize_doc_contexts(overview_contexts)
+    sesion.flow_data["last_cer_router_context"] = _build_cer_router_context(report_options)
+    sesion.flow_data["last_cer_overview_router_context"] = _build_last_search_overview_context(
+        report_options=report_options,
+        overview_contexts=overview_contexts,
     )
 
     if report_options:
@@ -207,8 +226,11 @@ def _handle_product_detail_followup(
     settings: Settings,
     top_k: int,
     forced_action: str | None = None,
+    selected_report_hints: list[str] | None = None,
+    selected_report_indexes: list[int] | None = None,
     progress_callback: Callable[[str], None] | None = None,
 ) -> GuidedFlowResult:
+    forced = (forced_action or "").strip().upper()
     offered_reports = [
         r for r in sesion.flow_data.get("offered_reports", []) if isinstance(r, dict)
     ]
@@ -222,8 +244,15 @@ def _handle_product_detail_followup(
     last_detail_items = sesion.flow_data.get("last_detail_doc_contexts") or []
     last_detail_contexts = deserialize_doc_contexts(last_detail_items)
 
-    # Respuesta conversacional directa (CHAT_REPLY forzado o pregunta sobre contexto actual)
-    if (forced_action or "").strip().upper() == "CHAT_REPLY" or es_pregunta_sobre_contexto_actual(user_message):
+    if forced == "CLARIFY":
+        sesion.estado = EstadoSesion.ESPERANDO_DETALLE_PRODUCTO
+        return GuidedFlowResult(
+            handled=True,
+            response=build_followup_clarify_text(user_message=user_message, offered_reports=offered_reports),
+            rag_tag="none",
+        )
+
+    if forced == "CHAT_REPLY":
         base_contexts = last_detail_contexts or deserialize_doc_contexts(
             sesion.flow_data.get("last_doc_contexts") or []
         )
@@ -239,84 +268,18 @@ def _handle_product_detail_followup(
         sesion.estado = EstadoSesion.ESPERANDO_DETALLE_PRODUCTO
         return GuidedFlowResult(handled=True, response=chat_response, rag_tag="none")
 
-    # Enrutar follow-up
-    decision = route_guided_followup(
-        last_question=str(sesion.flow_data.get("last_question") or "").strip(),
-        last_assistant_message=last_assistant_message(sesion),
-        user_message=user_message,
-        offered_reports=offered_reports,
-        conversation_history=render_recent_history(sesion),
-        settings=settings,
-    )
-    if decision.selected_reports:
-        logger.info("🧩 Follow-up | señales: %s", ", ".join(decision.selected_reports))
-    if decision.selected_report_indexes:
-        logger.info("🔢 Follow-up | índices: %s", ", ".join(str(i) for i in decision.selected_report_indexes))
-
-    if decision.action == "NEW_RAG_QUERY":
-        sesion.estado = EstadoSesion.ESPERANDO_PROBLEMA
-        return _handle_problem_query(
-            sesion, decision.query.strip() or user_message, settings, top_k, progress_callback=progress_callback,
-        )
-
-    if decision.action == "ASK_PROBLEM":
-        sesion.estado = EstadoSesion.ESPERANDO_PROBLEMA
-        return GuidedFlowResult(handled=True, response=get_guided_intro_text(), rag_tag="none")
-
-    if decision.action == "ASK_SAG":
-        sesion.estado = EstadoSesion.ESPERANDO_PROBLEMA
-        sag_product = (decision.sag_product or "").strip()
-        sag_query = (decision.query or "").strip()
-        if not sag_query and sag_product:
-            sag_query = f"registro en base de datos de etiquetas y cultivos autorizados para {sag_product}"
-        if not sag_query:
-            sag_query = user_message.strip()
-        result = generate_sag_response(
-            sag_query, settings, user_message=user_message, product_hint=sag_product, progress_callback=progress_callback,
-        )
-        sesion.flow_data["last_sag_router_context"] = result.router_context
-        return GuidedFlowResult(
-            handled=result.handled, response=result.response, rag_tag=result.rag_tag, sources=result.sources,
-        )
-
-    if decision.action == "CHAT_REPLY":
-        sesion.estado = EstadoSesion.ESPERANDO_DETALLE_PRODUCTO
-        stored_contexts = last_detail_contexts or deserialize_doc_contexts(
-            sesion.flow_data.get("last_doc_contexts") or []
-        )
-        chat_response = generate_conversational_followup_response(
-            last_question=str(sesion.flow_data.get("last_question") or "").strip(),
-            last_assistant_message=last_assistant_message(sesion),
-            user_message=user_message,
-            offered_reports=offered_reports,
-            doc_contexts=stored_contexts,
-            settings=settings,
-            progress_callback=progress_callback,
-        )
-        return GuidedFlowResult(handled=True, response=chat_response, rag_tag="none")
-
-    if decision.action == "CLARIFY":
-        sesion.estado = EstadoSesion.ESPERANDO_DETALLE_PRODUCTO
-        return GuidedFlowResult(
-            handled=True,
-            response=build_followup_clarify_text(user_message=user_message, offered_reports=offered_reports),
-            rag_tag="none",
-        )
-
-    # Default: detalle de ensayo
-    stored = sesion.flow_data.get("last_doc_contexts") or []
-    stored_contexts = deserialize_doc_contexts(stored)
+    # Default: detalle de ensayo (accion DETAIL_FROM_LIST del router global)
     detail_response = generate_cer_detail_followup_response(
         user_message=user_message,
         last_question=str(sesion.flow_data.get("last_question") or "").strip(),
         last_assistant_message=last_assistant_message(sesion),
         offered_reports=offered_reports,
-        seed_doc_contexts=stored_contexts,
+        seed_doc_contexts=last_detail_contexts,
         settings=settings,
         top_k=top_k,
         sesion=sesion,
-        selected_report_hints=decision.selected_reports or [],
-        selected_report_indexes=decision.selected_report_indexes or [],
+        selected_report_hints=selected_report_hints or [],
+        selected_report_indexes=selected_report_indexes or [],
         progress_callback=progress_callback,
     )
     sesion.estado = EstadoSesion.ESPERANDO_DETALLE_PRODUCTO
@@ -386,3 +349,43 @@ def _build_contextual_chat_reply(
         return (generate_answer(prompt, settings, system_instruction="", profile="router") or "").strip()
     except Exception:
         return ""
+
+
+def _build_cer_router_context(report_options: list[dict[str, Any]]) -> str:
+    if not report_options:
+        return ""
+    base = render_report_options(report_options, include_inclusion_reason=True)
+    overview_lines: list[str] = []
+    for option in report_options[:12]:
+        label = str(option.get("label") or "").strip() or "N/D"
+        overview = str(option.get("overview") or "").strip()
+        if not overview:
+            continue
+        overview_lines.append(f"• {label} | overview={overview}")
+    if not overview_lines:
+        return base
+    return f"{base}\n\nOVERVIEW_POR_INFORME:\n" + "\n".join(overview_lines)
+
+
+def _build_last_search_overview_context(
+    *,
+    report_options: list[dict[str, Any]],
+    overview_contexts: list[Any],
+    limit: int = 12,
+) -> str:
+    lines: list[str] = []
+    for i, report in enumerate(report_options[:max(1, int(limit))], start=1):
+        label = str(report.get("label") or "").strip() or "N/D"
+        overview = str(report.get("overview") or "").strip()
+        if not overview:
+            # fallback corto desde contextos si faltara resumen en la opcion
+            if i - 1 < len(overview_contexts):
+                ctx = overview_contexts[i - 1]
+                chunks = getattr(ctx, "chunks", []) if ctx is not None else []
+                for ch in chunks:
+                    txt = str((ch or {}).get("text") or "").strip()
+                    if txt:
+                        overview = re.sub(r"\s+", " ", txt)[:260]
+                        break
+        lines.append(f"{i}. {label} | overview={overview or 'N/D'}")
+    return "\n".join(lines) if lines else "sin overview CER reciente"

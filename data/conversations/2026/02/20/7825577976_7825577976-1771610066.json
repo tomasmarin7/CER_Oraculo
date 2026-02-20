@@ -1,0 +1,97 @@
+{
+  "session_id": "7825577976_7825577976-1771610066",
+  "user_id": "7825577976:7825577976",
+  "channel": "telegram",
+  "started_at": "2026-02-20T17:54:26+00:00",
+  "ended_at": null,
+  "status": "open",
+  "state": "WAITING_PRODUCT_DETAIL",
+  "last_activity_ts": "2026-02-20T17:58:01+00:00",
+  "expire_at": "2026-02-20T18:13:01+00:00",
+  "turns": [
+    {
+      "ts": "2026-02-20T17:54:26+00:00",
+      "role": "assistant",
+      "text": "*Oráculo Agrónomo CER* Soy un asistente del Centro de Evaluación Rosario (CER). Te ayudo a revisar qué productos hemos ensayado en cultivos y plagas específicas, y a resumirte resultados, dosis y condiciones de ensayo. Cuéntame cuál es tu problema con el cultivo o qué información necesitas."
+    },
+    {
+      "ts": "2026-02-20T17:54:37+00:00",
+      "role": "user",
+      "text": "tengo problemas con arañitas"
+    },
+    {
+      "ts": "2026-02-20T17:54:49+00:00",
+      "role": "assistant",
+      "text": "Entendido, buscas información sobre el control de arañitas. Para poder buscar los ensayos del CER, por favor, indícame en qué cultivo se presenta este problema."
+    },
+    {
+      "ts": "2026-02-20T17:54:56+00:00",
+      "role": "user",
+      "text": "ciruela"
+    },
+    {
+      "ts": "2026-02-20T17:55:28+00:00",
+      "role": "assistant",
+      "text": "No se ha ensayado este caso en el CER. Si quieres, puedo buscar productos en nuestra base de datos de etiquetas que indiquen este problema en su etiqueta. ¿Lo hago? Si prefieres no revisar la base de datos de etiquetas, dime otra consulta y buscamos en ensayos CER."
+    },
+    {
+      "ts": "2026-02-20T17:55:49+00:00",
+      "role": "user",
+      "text": "y sobre que se ha ensayado en el cer sobre ciruelas?"
+    },
+    {
+      "ts": "2026-02-20T17:56:19+00:00",
+      "role": "assistant",
+      "text": "Encontré estos ensayos del CER para ciruelas: • NITROBRAKE | Vals | 2017-2018 | Ciruelo japonés • NITROBRAKE | Vals | 2018-2019 | Ciruelo japonés • SUPERFIFTY | Zimex | 2016-2017 | Ciruelo japones • RETAIN | Valent | 2015-2016 | Ciruelo europeo • FERTUM CIRUELO | Fertum | 2016-2017 | Ciruelo europeo • TENS ZOLAR | BioApply | 2020-2021 | Ciruelo japones • ZHIMAD | Humic | 2017-2018 | Ciruelo japonés • SUNTEC | Mipagro | 2016-2017 | Ciruelo japonés • WERT | Tavan | 2017-2018 | Ciruelo europeo • REDFRUITS | Gruindag | 2015-2016 | Ciruelo europeo • IMPULSO 25 SC Y KREXIM METIL 50 SC | Anasac | 2014-2015 | Ciruelo japones ¿Sobre cuáles ensayos quieres que te detalle más? Si ninguno te sirve, puedo buscar productos en nuestra base de datos de etiquetas que indiquen ese problema en su etiqueta. Si tampoco quieres revisar la base de datos de etiquetas, dime otro problema o cultivo y hacemos una nueva búsqueda en ensayos CER."
+    },
+    {
+      "ts": "2026-02-20T17:57:42+00:00",
+      "role": "user",
+      "text": "y de que se tratan esos ensayos?"
+    },
+    {
+      "ts": "2026-02-20T17:58:01+00:00",
+      "role": "assistant",
+      "text": "Los ensayos evalúan diferentes objetivos en ciruelos, por ejemplo: • Mejorar *producción y calidad* de la fruta (Nitrobrake, Superfifty). • Reducir la *caída de fruta* pre-cosecha (Retain). • Disminuir problemas como *\"fruta borracha\"* (Fertum Ciruelo). • Proteger contra el *golpe de sol* (Tens Zolar, Suntec). • Corregir *carencias nutricionales* (Zhimad). ¿Quieres que profundice en alguno de estos temas o productos?"
+    }
+  ],
+  "meta": {
+    "last_rag_used": "none",
+    "last_sources": [],
+    "router_trace": [
+      {
+        "action": "CLARIFY",
+        "query": "",
+        "rationale": "Falta el cultivo para buscar ensayos de arañitas.",
+        "selected_reports": [],
+        "selected_report_indexes": [],
+        "ts": 1771610077
+      },
+      {
+        "action": "NEW_CER_QUERY",
+        "query": "arañitas en ciruela",
+        "rationale": "El usuario especifica el cultivo para la búsqueda de arañitas.",
+        "selected_reports": [],
+        "selected_report_indexes": [],
+        "ts": 1771610096
+      },
+      {
+        "action": "NEW_CER_QUERY",
+        "query": "ensayos en ciruelas",
+        "rationale": "El usuario pide una nueva búsqueda CER sobre ciruelas en general.",
+        "selected_reports": [],
+        "selected_report_indexes": [],
+        "ts": 1771610149
+      },
+      {
+        "action": "CHAT_REPLY",
+        "query": "",
+        "rationale": "El usuario pregunta por el resumen de los ensayos ya listados.",
+        "selected_reports": [],
+        "selected_report_indexes": [],
+        "ts": 1771610262
+      }
+    ],
+    "close_reason": ""
+  }
+}

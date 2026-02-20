@@ -1,0 +1,61 @@
+{
+  "session_id": "7825577976_7825577976-1771610912",
+  "user_id": "7825577976:7825577976",
+  "channel": "telegram",
+  "started_at": "2026-02-20T18:08:32+00:00",
+  "ended_at": "2026-02-20T18:10:01+00:00",
+  "status": "closed",
+  "state": "WAITING_PRODUCT_DETAIL",
+  "last_activity_ts": "2026-02-20T18:10:01+00:00",
+  "expire_at": "2026-02-20T18:25:01+00:00",
+  "turns": [
+    {
+      "ts": "2026-02-20T18:08:32+00:00",
+      "role": "assistant",
+      "text": "*Oráculo Agrónomo CER* Soy un asistente del Centro de Evaluación Rosario (CER). Te ayudo a revisar qué productos hemos ensayado en cultivos y plagas específicas, y a resumirte resultados, dosis y condiciones de ensayo. Cuéntame cuál es tu problema con el cultivo o qué información necesitas."
+    },
+    {
+      "ts": "2026-02-20T18:08:52+00:00",
+      "role": "user",
+      "text": "quiero aumentar el calibre de los frutos"
+    },
+    {
+      "ts": "2026-02-20T18:09:07+00:00",
+      "role": "assistant",
+      "text": "Entendido. Para poder buscar en nuestros ensayos sobre aumento de calibre, necesitaría saber en qué cultivo o especie estás trabajando."
+    },
+    {
+      "ts": "2026-02-20T18:09:28+00:00",
+      "role": "user",
+      "text": "de durazno"
+    },
+    {
+      "ts": "2026-02-20T18:10:01+00:00",
+      "role": "assistant",
+      "text": "Encontré estos ensayos del CER para aumento de calibre en durazno: • Ca APPLY | BioApply | 2019-2020 | Durazno • ZHIMAD | Humic | 2017-2018 | Durazno • ORIUS 43 SC, CAPTAN 80 WG Y CAPTAN 83 WP | Adama | 2016-2017 | Durazno ¿Sobre cuáles ensayos quieres que te detalle más? Si ninguno te sirve, puedo buscar productos en nuestra base de datos de etiquetas que indiquen ese problema en su etiqueta. Si tampoco quieres revisar la base de datos de etiquetas, dime otro problema o cultivo y hacemos una nueva búsqueda en ensayos CER."
+    }
+  ],
+  "meta": {
+    "last_rag_used": "cer",
+    "last_sources": [],
+    "router_trace": [
+      {
+        "action": "CLARIFY",
+        "query": "",
+        "rationale": "Falta el cultivo para buscar ensayos CER relevantes.",
+        "selected_reports": [],
+        "selected_report_indexes": [],
+        "ts": 1771610932
+      },
+      {
+        "action": "NEW_CER_QUERY",
+        "query": "aumento de calibre en durazno",
+        "rationale": "El usuario especifica el cultivo para la consulta anterior.",
+        "selected_reports": [],
+        "selected_report_indexes": [],
+        "ts": 1771610968
+      }
+    ],
+    "close_reason": "session_expired_cleanup"
+  }
+}

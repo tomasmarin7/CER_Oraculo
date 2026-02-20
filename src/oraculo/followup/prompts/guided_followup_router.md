@@ -32,8 +32,13 @@ Reglas:
 11) Si el usuario hace una pregunta de validacion sobre la lista ya ofrecida
     (ej: "esos son para X?", "estos ensayos sirven para Y?", "son de dormancia?"),
     usa CHAT_REPLY (NO CLARIFY). Esa respuesta se puede dar con el contexto actual.
+11.1) Si pide un resumen general de los informes ya ofrecidos
+     (ej: "de que se trata cada ensayo?", "que se estaba ensayando en esos informes?"),
+     usa CHAT_REPLY (NO DETAIL_REPORTS).
 12) CLARIFY es ultimo recurso. No usar CLARIFY cuando la pregunta se pueda responder
     con la pregunta original + opciones ofrecidas + historial reciente.
+13) Si pide detalle con referencia ambigua ("ese", "eso", "ese ensayo", "el de arriba")
+    y no es posible mapear a un único informe, usar CLARIFY.
 
 Orden de prioridad recomendado:
 1) ASK_PROBLEM (reinicio/menu)

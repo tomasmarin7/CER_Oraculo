@@ -1,0 +1,79 @@
+{
+  "session_id": "7825577976_7825577976-1771608620",
+  "user_id": "7825577976:7825577976",
+  "channel": "telegram",
+  "started_at": "2026-02-20T17:30:20+00:00",
+  "ended_at": "2026-02-20T17:32:01+00:00",
+  "status": "closed",
+  "state": "WAITING_PRODUCT_DETAIL",
+  "last_activity_ts": "2026-02-20T17:32:01+00:00",
+  "expire_at": "2026-02-20T17:47:01+00:00",
+  "turns": [
+    {
+      "ts": "2026-02-20T17:30:20+00:00",
+      "role": "assistant",
+      "text": "*Oráculo Agrónomo CER* Soy un asistente del Centro de Evaluación Rosario (CER). Te ayudo a revisar qué productos hemos ensayado en cultivos y plagas específicas, y a resumirte resultados, dosis y condiciones de ensayo. Cuéntame cuál es tu problema con el cultivo o qué información necesitas."
+    },
+    {
+      "ts": "2026-02-20T17:30:27+00:00",
+      "role": "user",
+      "text": "tengo problemas con arañitas"
+    },
+    {
+      "ts": "2026-02-20T17:30:39+00:00",
+      "role": "assistant",
+      "text": "Entendido. Para poder buscar los ensayos sobre control de arañitas, por favor, indícame en qué cultivo tienes este problema."
+    },
+    {
+      "ts": "2026-02-20T17:30:51+00:00",
+      "role": "user",
+      "text": "ciruela"
+    },
+    {
+      "ts": "2026-02-20T17:31:13+00:00",
+      "role": "assistant",
+      "text": "No se ha ensayado este caso en el CER. Si quieres, puedo buscar productos en nuestra base de datos de etiquetas que indiquen este problema en su etiqueta. ¿Lo hago? Si prefieres no revisar la base de datos de etiquetas, dime otra consulta y buscamos en ensayos CER."
+    },
+    {
+      "ts": "2026-02-20T17:31:32+00:00",
+      "role": "user",
+      "text": "y en cerezo?"
+    },
+    {
+      "ts": "2026-02-20T17:32:01+00:00",
+      "role": "assistant",
+      "text": "No se ha ensayado este caso en el CER. Si quieres, puedo buscar productos en nuestra base de datos de etiquetas que indiquen este problema en su etiqueta. ¿Lo hago? Si prefieres no revisar la base de datos de etiquetas, dime otra consulta y buscamos en ensayos CER."
+    }
+  ],
+  "meta": {
+    "last_rag_used": "cer",
+    "last_sources": [],
+    "router_trace": [
+      {
+        "action": "CLARIFY",
+        "query": "",
+        "rationale": "Falta el cultivo para buscar ensayos de arañitas.",
+        "selected_reports": [],
+        "selected_report_indexes": [],
+        "ts": 1771608627
+      },
+      {
+        "action": "NEW_CER_QUERY",
+        "query": "control de arañitas en ciruela",
+        "rationale": "El usuario especifica el cultivo para la búsqueda de arañitas.",
+        "selected_reports": [],
+        "selected_report_indexes": [],
+        "ts": 1771608651
+      },
+      {
+        "action": "NEW_CER_QUERY",
+        "query": "control de arañitas en cerezo",
+        "rationale": "El usuario cambia el cultivo para la misma consulta técnica.",
+        "selected_reports": [],
+        "selected_report_indexes": [],
+        "ts": 1771608692
+      }
+    ],
+    "close_reason": "session_expired_cleanup"
+  }
+}
