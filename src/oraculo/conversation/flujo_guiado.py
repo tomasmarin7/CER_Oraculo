@@ -18,6 +18,7 @@ from ..config import Settings
 from ..followup import render_report_options, route_guided_followup
 from ..providers.llm import generate_answer
 from ..rag.retriever import retrieve
+from ..sources.cer_csv_lookup import build_cer_csv_hints_block
 from .cer_response import (
     build_cer_first_response_from_hits,
     build_context_block,
@@ -150,9 +151,16 @@ def _handle_problem_query(
         progress_callback("Estoy revisando ensayos en la base de datos del CER para tu consulta...")
     logger.info("🔍 Flujo CER | búsqueda de ensayos...")
 
+    csv_hints = build_cer_csv_hints_block(settings.cer_csv_path, question, limit=12)
+    enhanced_conversation_context = (
+        render_recent_history(sesion, max_items=10)
+        + "\n\nSEÑALES_CSV_INICIALES:\n"
+        + csv_hints
+    )
+
     _refined_query, hits = retrieve(
         question, settings, top_k=top_k,
-        conversation_context=render_recent_history(sesion, max_items=10),
+        conversation_context=enhanced_conversation_context,
     )
     sesion.flow_data["last_question"] = question
     sesion.flow_data["last_doc_contexts"] = []

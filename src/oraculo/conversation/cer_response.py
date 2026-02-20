@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+from pathlib import Path
 from typing import Any, Callable
 
 from ..config import Settings
@@ -15,7 +16,7 @@ from ..followup import (
 from ..providers.llm import generate_answer
 from ..rag.doc_context import DocContext, build_doc_contexts_from_hits
 from ..rag.retriever import retrieve
-from ..sources.cer_csv_lookup import detect_cer_entities, load_cer_index
+from ..sources.cer_csv_lookup import detect_cer_entities, find_cer_records_by_query, load_cer_index
 from ..sources.resolver import format_sources_from_hits
 from .flow_helpers import (
     deserialize_doc_contexts,
@@ -43,7 +44,9 @@ def build_cer_first_response_from_hits(
     settings: Settings,
 ) -> tuple[str, str, list[dict[str, Any]]]:
     """Genera texto de listado, escenario detectado, y opciones de reporte."""
-    offered_reports = _build_report_options_from_hits(hits, settings)
+    csv_seed_reports = _build_report_options_from_csv_query(settings, question, limit=12)
+    rag_csv_reports = _build_report_options_from_hits(hits, settings)
+    offered_reports = _merge_report_options(rag_csv_reports, csv_seed_reports)
     if not offered_reports:
         text = (
             "No se ha ensayado este caso en el CER.\n"
@@ -453,6 +456,10 @@ def _build_report_options_from_hits(
 ) -> list[dict[str, Any]]:
     index = load_cer_index(settings.cer_csv_path)
     by_pdf = {normalize_text(rec.pdf): rec for rec in index.records if normalize_text(rec.pdf)}
+    by_doc_key: dict[str, Any] = {}
+    for rec in index.records:
+        for key in _doc_lookup_keys_from_value(rec.pdf):
+            by_doc_key[key] = rec
 
     options: list[dict[str, Any]] = []
     seen_doc_ids: set[str] = set()
@@ -464,14 +471,26 @@ def _build_report_options_from_hits(
         if doc_id:
             seen_doc_ids.add(doc_id)
 
-        pdf = str(payload.get("pdf_filename") or "").strip()
-        rec = by_pdf.get(normalize_text(pdf))
+        pdf = str(payload.get("pdf_filename") or payload.get("pdf") or "").strip()
+        rec = by_pdf.get(normalize_text(pdf)) if pdf else None
+        if rec is None:
+            for key in _doc_lookup_keys_from_value(doc_id):
+                rec = by_doc_key.get(key)
+                if rec is not None:
+                    break
+        if rec is None and pdf:
+            for key in _doc_lookup_keys_from_value(pdf):
+                rec = by_doc_key.get(key)
+                if rec is not None:
+                    break
+        if rec is None:
+            continue
 
-        producto = str((rec.producto if rec else payload.get("producto")) or "").strip() or "N/D"
-        cliente = str((rec.cliente if rec else payload.get("cliente")) or "").strip() or "N/D"
-        temporada = str((rec.temporada if rec else payload.get("temporada")) or "").strip() or "N/D"
-        especie = str((rec.especie if rec else payload.get("especie")) or "").strip() or "N/D"
-        variedad = str((rec.variedad if rec else payload.get("variedad")) or "").strip() or "N/D"
+        producto = _display_value(rec.producto)
+        cliente = _display_value(rec.cliente)
+        temporada = _display_value(rec.temporada)
+        especie = _display_value(rec.especie)
+        variedad = _display_value(rec.variedad)
 
         label = f"{producto} ({especie}, {variedad}, {temporada})"
         options.append({
@@ -495,6 +514,72 @@ def _build_report_options_from_hits(
             seen_keys.add(key)
             unique.append(opt)
     return unique
+
+
+def _merge_report_options(
+    primary: list[dict[str, Any]],
+    secondary: list[dict[str, Any]],
+    limit: int = 12,
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str, str, str]] = set()
+    for item in [*primary, *secondary]:
+        key = (
+            normalize_text(str(item.get("producto") or "")),
+            normalize_text(str(item.get("cliente") or "")),
+            normalize_text(str(item.get("temporada") or "")),
+            normalize_text(str(item.get("especie") or "")),
+            normalize_text(str(item.get("variedad") or "")),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(item)
+        if len(out) >= max(1, int(limit)):
+            break
+    return out
+
+
+def _build_report_options_from_csv_query(
+    settings: Settings,
+    question: str,
+    limit: int = 12,
+) -> list[dict[str, Any]]:
+    records = find_cer_records_by_query(settings.cer_csv_path, question, limit=max(1, int(limit)))
+    if not records:
+        return []
+
+    options: list[dict[str, Any]] = []
+    seen_keys: set[tuple[str, str, str, str, str]] = set()
+    for rec in records:
+        key = (
+            normalize_text(rec.producto),
+            normalize_text(rec.cliente),
+            normalize_text(rec.temporada),
+            normalize_text(rec.especie),
+            normalize_text(rec.variedad),
+        )
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+
+        producto = _display_value(rec.producto)
+        cliente = _display_value(rec.cliente)
+        temporada = _display_value(rec.temporada)
+        especie = _display_value(rec.especie)
+        variedad = _display_value(rec.variedad)
+        label = f"{producto} ({especie}, {variedad}, {temporada})"
+        options.append({
+            "label": label,
+            "products": [producto],
+            "doc_ids": _doc_id_candidates_from_pdf(rec.pdf),
+            "producto": producto,
+            "cliente": cliente,
+            "temporada": temporada,
+            "especie": especie,
+            "variedad": variedad,
+        })
+    return options
 
 
 def _build_report_options_from_csv_species(
@@ -525,17 +610,17 @@ def _build_report_options_from_csv_species(
             continue
         seen_keys.add(key)
 
-        producto = rec.producto or "N/D"
-        cliente = rec.cliente or "N/D"
-        temporada = rec.temporada or "N/D"
-        especie = rec.especie or "N/D"
-        variedad = rec.variedad or "N/D"
+        producto = _display_value(rec.producto)
+        cliente = _display_value(rec.cliente)
+        temporada = _display_value(rec.temporada)
+        especie = _display_value(rec.especie)
+        variedad = _display_value(rec.variedad)
         label = f"{producto} ({especie}, {variedad}, {temporada})"
 
         options.append({
             "label": label,
             "products": [producto],
-            "doc_ids": [rec.pdf] if rec.pdf else [],
+            "doc_ids": _doc_id_candidates_from_pdf(rec.pdf),
             "producto": producto,
             "cliente": cliente,
             "temporada": temporada,
@@ -546,6 +631,46 @@ def _build_report_options_from_csv_species(
             break
 
     return options
+
+
+def _display_value(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return "N/D"
+    if normalize_text(text) in {"na", "n/a", "nd", "n/d", "s/i", "sin info", "sin informacion"}:
+        return "N/D"
+    return text
+
+
+def _doc_lookup_keys_from_value(value: Any) -> set[str]:
+    raw = str(value or "").strip()
+    if not raw:
+        return set()
+    name = Path(raw).name
+    stem = Path(name).stem
+    keys = {normalize_text(raw), normalize_text(name), normalize_text(stem)}
+    return {k for k in keys if k}
+
+
+def _doc_id_candidates_from_pdf(pdf_value: Any) -> list[str]:
+    raw = str(pdf_value or "").strip()
+    if not raw:
+        return []
+    name = Path(raw).name
+    stem = Path(name).stem
+    candidates = [stem, name, raw]
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in candidates:
+        text = str(item or "").strip()
+        if not text:
+            continue
+        key = normalize_text(text)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(text)
+    return out
 
 
 def _extract_species_and_season_from_label(label: str) -> tuple[str, str]:

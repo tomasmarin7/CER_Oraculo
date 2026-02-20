@@ -16,6 +16,7 @@ from ..rag.retriever import (
 )
 from ..sources.sag_csv_lookup import (
     build_csv_query_hints_block,
+    find_products_by_query,
     find_products_by_ingredient,
     find_products_by_objective,
     get_product_composition,
@@ -68,12 +69,29 @@ def generate_sag_response(
     if progress_callback:
         progress_callback("Estoy extrayendo los productos de etiquetas que coinciden con tu consulta...")
 
+    # 1) CSV inicial con pregunta del usuario (señales para refined query).
+    csv_pre_product_ids, csv_pre_auths, _csv_pre_records = find_products_by_query(
+        settings.sag_csv_path, normalized_query, limit=max(base_top_k * 20, 120),
+    )
+    csv_pre_hints = build_csv_query_hints_block(
+        settings.sag_csv_path, normalized_query, limit=12,
+    )
+    csv_pre_ids_text = ", ".join(sorted(csv_pre_product_ids)[:80]) if csv_pre_product_ids else "sin_ids"
+    csv_pre_auths_text = ", ".join(sorted(csv_pre_auths)[:80]) if csv_pre_auths else "sin_auths"
+    retrieval_context = (
+        f"{normalized_query}\n{effective_user_message}\n"
+        "SEÑALES_CSV_INICIALES:\n"
+        f"{csv_pre_hints}\n"
+        f"CSV_PRODUCT_IDS: {csv_pre_ids_text}\n"
+        f"CSV_AUTHS: {csv_pre_auths_text}"
+    )
+
     # Búsqueda semántica inicial
     seed_hits = retrieve_sag(
         normalized_query,
         settings=settings,
         top_k=retrieval_top_k,
-        conversation_context=f"{normalized_query}\n{effective_user_message}",
+        conversation_context=retrieval_context,
     )
 
     # Filtrado progresivo
@@ -96,6 +114,16 @@ def generate_sag_response(
         settings,
         max_rows_per_filter=max(base_top_k * 16, 160),
     )
+    # Conserva también los hallazgos CSV iniciales en la etapa de consolidación.
+    if csv_pre_product_ids or csv_pre_auths:
+        pre_csv_rows = retrieve_sag_rows_by_ids(
+            settings=settings,
+            product_ids=csv_pre_product_ids,
+            auth_numbers=csv_pre_auths,
+            max_rows=max(base_top_k * 220, 4500),
+        )
+        if pre_csv_rows:
+            sag_hits = merge_hits_by_id(sag_hits, pre_csv_rows)
 
     # Boost de recall con CSV por objetivo
     sag_hits = _boost_with_csv_objective(sag_hits, objective_hint, settings, base_top_k)
@@ -104,6 +132,14 @@ def generate_sag_response(
 
     # Filtrado post-enriquecimiento
     sag_hits = _post_enrich_filter(sag_hits, ingredient_hint, objective_hint)
+    # 4) Confirmación final CSV + RAG para formar la lista.
+    sag_hits = _confirm_hits_with_csv(
+        sag_hits=sag_hits,
+        normalized_query=normalized_query,
+        effective_user_message=effective_user_message,
+        settings=settings,
+        base_top_k=base_top_k,
+    )
 
     if not sag_hits:
         return SagFlowResult(
@@ -202,6 +238,76 @@ def _post_enrich_filter(
         if filtered:
             return filtered
     return sag_hits
+
+
+def _confirm_hits_with_csv(
+    *,
+    sag_hits: list[dict[str, Any]],
+    normalized_query: str,
+    effective_user_message: str,
+    settings: Settings,
+    base_top_k: int,
+) -> list[dict[str, Any]]:
+    if not sag_hits:
+        return sag_hits
+
+    query_parts: list[str] = [normalized_query, effective_user_message]
+    for hit in sag_hits[: max(8, base_top_k * 2)]:
+        payload = hit.get("payload") or {}
+        query_parts.extend(
+            [
+                str(payload.get("producto_id") or "").strip(),
+                str(payload.get("nombre_comercial") or payload.get("producto_nombre_comercial") or "").strip(),
+                str(payload.get("autorizacion_sag_numero_normalizado") or "").strip(),
+                str(payload.get("objetivo") or "").strip(),
+                str(payload.get("objetivo_normalizado") or "").strip(),
+                str(payload.get("ingredientes") or "").strip(),
+            ]
+        )
+    csv_query = " ".join(part for part in query_parts if part)
+    csv_product_ids, csv_auths, _records = find_products_by_query(
+        settings.sag_csv_path, csv_query, limit=max(base_top_k * 30, 200),
+    )
+    if not csv_product_ids and not csv_auths:
+        return sag_hits
+
+    confirmed_rows = retrieve_sag_rows_by_ids(
+        settings=settings,
+        product_ids=csv_product_ids,
+        auth_numbers=csv_auths,
+        max_rows=max(base_top_k * 220, 4500),
+    )
+    if not confirmed_rows:
+        return sag_hits
+
+    merged = merge_hits_by_id(sag_hits, confirmed_rows)
+    confirmed = [
+        hit for hit in merged
+        if _hit_matches_csv_confirmation(
+            hit,
+            csv_product_ids=csv_product_ids,
+            csv_auths=csv_auths,
+        )
+    ]
+    if confirmed:
+        logger.info(
+            "✅ SAG confirmación CSV | ids=%s | auths=%s | antes=%s | despues=%s",
+            len(csv_product_ids), len(csv_auths), len(sag_hits), len(confirmed),
+        )
+        return confirmed
+    return merged
+
+
+def _hit_matches_csv_confirmation(
+    hit: dict[str, Any],
+    *,
+    csv_product_ids: set[str],
+    csv_auths: set[str],
+) -> bool:
+    payload = hit.get("payload") or {}
+    pid = normalize_text(str(payload.get("producto_id") or "").strip())
+    auth = normalize_text(str(payload.get("autorizacion_sag_numero_normalizado") or "").strip())
+    return (pid and pid in csv_product_ids) or (auth and auth in csv_auths)
 
 
 # ---------------------------------------------------------------------------
