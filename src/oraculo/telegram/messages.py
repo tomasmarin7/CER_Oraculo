@@ -19,32 +19,6 @@ def get_database_intro_message() -> str:
     )
 
 
-def get_processing_message() -> str:
-    """Mensaje mientras se procesa una consulta"""
-    return (
-        "*Buscando en la base de datos...*\n\n" "Esto puede tomar unos segundos."
-    )
-
-
-def get_invalid_query_message() -> str:
-    """Mensaje cuando la consulta está vacía"""
-    return "Por favor, escribe una consulta válida."
-
-
-def get_error_message() -> str:
-    """Mensaje genérico de error"""
-    return (
-        "*Error procesando tu consulta*\n\n"
-        "Ocurrió un error al buscar en la base de datos. "
-        "Por favor, intenta nuevamente."
-    )
-
-
-def get_post_query_message() -> str:
-    """Mensaje después de responder una consulta"""
-    return "Puedes seguir preguntando en este chat o volver al menú."
-
-
 def get_generic_error_message() -> str:
     """Mensaje de error genérico para el error handler"""
     return "Ocurrió un error inesperado. Por favor, intenta nuevamente."

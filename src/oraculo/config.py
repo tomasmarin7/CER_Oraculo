@@ -130,11 +130,23 @@ class Settings(BaseSettings):
 
     # ===== TELEGRAM BOT =====
     telegram_bot_token: SecretStr = Field(validation_alias="TELEGRAM_BOT_TOKEN")
+    telegram_concurrent_updates: int = Field(
+        default=64,
+        validation_alias="TELEGRAM_CONCURRENT_UPDATES",
+    )
 
-    # ===== EDISON API =====
-    edison_api_key: SecretStr | None = Field(
-        default=None,
-        validation_alias="EDISON_API_KEY",
+    # ===== RUNTIME =====
+    oraculo_worker_threads: int = Field(
+        default=24,
+        validation_alias="ORACULO_WORKER_THREADS",
+    )
+    oraculo_session_cleanup_interval_seconds: int = Field(
+        default=60,
+        validation_alias="ORACULO_SESSION_CLEANUP_INTERVAL_SECONDS",
+    )
+    oraculo_max_sesiones_en_memoria: int = Field(
+        default=1000,
+        validation_alias="ORACULO_MAX_SESIONES_EN_MEMORIA",
     )
 
     model_config = SettingsConfigDict(

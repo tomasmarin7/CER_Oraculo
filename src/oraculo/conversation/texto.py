@@ -19,10 +19,3 @@ def historial_corto(sesion: SesionChat, max_items: int = 10) -> str:
         return "(vacio)"
     lineas = [f"{m.rol}: {m.texto}" for m in sesion.mensajes[-max_items:]]
     return "\n".join(lineas)
-
-
-def ultimo_mensaje_usuario(sesion: SesionChat) -> str:
-    for msg in reversed(sesion.mensajes):
-        if msg.rol == "user":
-            return msg.texto
-    return ""

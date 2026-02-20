@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 from typing import TYPE_CHECKING
 
 from telegram import Update
@@ -29,8 +30,8 @@ if TYPE_CHECKING:
     from ..config import Settings
 
 logger = logging.getLogger(__name__)
-_almacen_sesiones: RepositorioSesiones = AlmacenSesionesMemoria()
-_servicio_oraculo = ServicioConversacionOraculo(_almacen_sesiones)
+_runtime_guard = threading.Lock()
+_runtime_services: tuple[RepositorioSesiones, ServicioConversacionOraculo] | None = None
 PROCESSING_HEADER = "Estoy preparando tu respuesta."
 INITIAL_STATUS = "Estoy revisando tu consulta para entender bien el problema..."
 
@@ -41,14 +42,16 @@ def _build_processing_message(status: str) -> str:
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    settings = _resolver_settings(context)
+    almacen_sesiones, _ = _get_runtime_services(settings)
     actor_id = _build_session_actor_id(update)
     with log_actor_context(actor_id):
-        sesion = _obtener_sesion(update)
+        sesion = _obtener_sesion(update, almacen_sesiones)
         if sesion.mensajes:
             close_session_archive(sesion, reason="start_command")
         reiniciar_sesion(sesion)
         sesion.estado = EstadoSesion.ESPERANDO_PROBLEMA
-        _almacen_sesiones.guardar(sesion)
+        almacen_sesiones.guardar(sesion)
 
         await update.message.reply_text(
             get_database_intro_message(),
@@ -63,6 +66,7 @@ async def handle_user_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         user_id = actor_id
 
         settings = _resolver_settings(context)
+        _, servicio_oraculo = _get_runtime_services(settings)
         processing_message = await update.message.reply_text(
             _build_processing_message(INITIAL_STATUS)
         )
@@ -90,7 +94,7 @@ async def handle_user_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
         try:
             respuesta = await asyncio.to_thread(
-                _servicio_oraculo.procesar_mensaje,
+                servicio_oraculo.procesar_mensaje,
                 user_id=user_id,
                 mensaje_usuario=mensaje_usuario,
                 settings=settings,
@@ -133,12 +137,6 @@ async def _send_telegram_response(
             )
 
 
-async def default_message_handler(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
-    await handle_user_text(update, context)
-
-
 def _resolver_settings(context: ContextTypes.DEFAULT_TYPE) -> Settings:
     settings = context.application.bot_data.get("settings")
     if settings:
@@ -146,9 +144,34 @@ def _resolver_settings(context: ContextTypes.DEFAULT_TYPE) -> Settings:
     return get_settings()
 
 
-def _obtener_sesion(update: Update):
+def _obtener_sesion(update: Update, almacen_sesiones: RepositorioSesiones):
     actor_id = _build_session_actor_id(update)
-    return _almacen_sesiones.obtener_o_crear(actor_id)
+    return almacen_sesiones.obtener_o_crear(actor_id)
+
+
+def _get_runtime_services(
+    settings: Settings,
+) -> tuple[RepositorioSesiones, ServicioConversacionOraculo]:
+    global _runtime_services
+    if _runtime_services is not None:
+        return _runtime_services
+
+    with _runtime_guard:
+        if _runtime_services is None:
+            almacen_sesiones = AlmacenSesionesMemoria(
+                cleanup_interval_seconds=settings.oraculo_session_cleanup_interval_seconds,
+                max_sesiones_en_memoria=settings.oraculo_max_sesiones_en_memoria,
+            )
+            _runtime_services = (
+                almacen_sesiones,
+                ServicioConversacionOraculo(almacen_sesiones),
+            )
+    return _runtime_services
+
+
+def cleanup_expired_sessions(settings: Settings) -> int:
+    almacen_sesiones, _ = _get_runtime_services(settings)
+    return almacen_sesiones.limpiar_expiradas()
 
 
 def _build_session_actor_id(update: Update) -> str:

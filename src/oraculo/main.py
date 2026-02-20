@@ -10,12 +10,3 @@ def run_telegram_bot() -> None:
     setup_logging()
     settings = get_settings()
     TelegramBot(settings).run()
-
-
-def main() -> int:
-    run_telegram_bot()
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

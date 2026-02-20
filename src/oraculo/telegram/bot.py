@@ -4,7 +4,9 @@ Registra handlers y mantiene el servicio activo.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 from telegram import Update
 from telegram.ext import (
@@ -19,7 +21,6 @@ from . import handlers
 from .messages import get_generic_error_message
 
 logger = logging.getLogger(__name__)
-DEFAULT_CONCURRENT_UPDATES = 64
 
 
 class TelegramBot:
@@ -32,7 +33,9 @@ class TelegramBot:
 
     def __init__(self, settings: Settings):
         self.settings = settings
-        self.application = None
+        self.application: Application | None = None
+        self._worker_executor: ThreadPoolExecutor | None = None
+        self._cleanup_task: asyncio.Task | None = None
 
     def setup(self) -> Application:
         """
@@ -41,10 +44,13 @@ class TelegramBot:
         Returns:
             Application configurada
         """
+        concurrent_updates = max(int(self.settings.telegram_concurrent_updates), 1)
         application = (
             Application.builder()
             .token(self.settings.telegram_bot_token.get_secret_value())
-            .concurrent_updates(DEFAULT_CONCURRENT_UPDATES)
+            .concurrent_updates(concurrent_updates)
+            .post_init(self._post_init)
+            .post_shutdown(self._post_shutdown)
             .build()
         )
         application.bot_data["settings"] = self.settings
@@ -66,6 +72,51 @@ class TelegramBot:
 
         self.application = application
         return application
+
+    async def _post_init(self, application: Application) -> None:
+        max_workers = max(int(self.settings.oraculo_worker_threads), 1)
+        self._worker_executor = ThreadPoolExecutor(
+            max_workers=max_workers,
+            thread_name_prefix="oraculo-worker",
+        )
+        asyncio.get_running_loop().set_default_executor(self._worker_executor)
+        logger.info(
+            "Worker pool de ejecución configurado | max_workers=%s | concurrent_updates=%s",
+            max_workers,
+            max(int(self.settings.telegram_concurrent_updates), 1),
+        )
+        self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+
+    async def _post_shutdown(self, application: Application) -> None:
+        if self._cleanup_task:
+            self._cleanup_task.cancel()
+            try:
+                await self._cleanup_task
+            except asyncio.CancelledError:
+                pass
+            self._cleanup_task = None
+        if self._worker_executor:
+            self._worker_executor.shutdown(wait=False, cancel_futures=True)
+            self._worker_executor = None
+
+    async def _cleanup_loop(self) -> None:
+        interval = max(int(self.settings.oraculo_session_cleanup_interval_seconds), 1)
+        while True:
+            try:
+                await asyncio.sleep(interval)
+                removidas = await asyncio.to_thread(
+                    handlers.cleanup_expired_sessions,
+                    self.settings,
+                )
+                if removidas:
+                    logger.info(
+                        "Housekeeping sesiones: %s expiradas removidas de RAM.",
+                        removidas,
+                    )
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("Error en limpieza periódica de sesiones.")
 
     async def _route_text_message(self, update: Update, context) -> None:
         """

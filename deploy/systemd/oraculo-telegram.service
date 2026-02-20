@@ -1,0 +1,18 @@
+[Unit]
+Description=CER Oraculo Publico Telegram Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tomas
+WorkingDirectory=/home/tomas/code/CER_Oraculo_Publico
+EnvironmentFile=/home/tomas/code/CER_Oraculo_Publico/.env
+ExecStart=/home/tomas/code/CER_Oraculo_Publico/.venv/bin/python run_bot.py
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target

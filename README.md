@@ -34,6 +34,11 @@ Copiar `.env.example` a `.env` y completar:
   - Router rapido:
     - `GEMINI_ROUTER_MODEL=gemini-2.5-flash`
     - `GEMINI_ROUTER_THINKING_BUDGET=0`
+  - Operacion 24/7:
+    - `TELEGRAM_CONCURRENT_UPDATES=64`
+    - `ORACULO_WORKER_THREADS=24`
+    - `ORACULO_SESSION_CLEANUP_INTERVAL_SECONDS=60`
+    - `ORACULO_MAX_SESIONES_EN_MEMORIA=1000`
   - Respuestas complejas:
     - `GEMINI_COMPLEX_MODEL=gemini-3-pro-preview`
     - `GEMINI_COMPLEX_MAX_OUTPUT_TOKENS=4096`
@@ -95,4 +100,25 @@ Resumen:
 
 - El servicio conversacional ya esta desacoplado del canal y puede ejecutarse desde Telegram, WhatsApp webhook o Lambdas.
 - El repositorio actual usa memoria para sesiones (`AlmacenSesionesMemoria`) y archivos JSON para archivo historico.
+- Hay limpieza periodica en background: cada `ORACULO_SESSION_CLEANUP_INTERVAL_SECONDS` se remueven de RAM sesiones inactivas por 15 minutos y se conservan archivadas en `data/conversations/`.
 - Para respuestas mas rapidas, usa `GEMINI_MODEL=gemini-2.5-flash` y `GEMINI_THINKING_BUDGET=0`.
+
+## Produccion 24/7 (Linux con systemd)
+
+1. Crear y completar `.env`.
+2. Ajustar `WorkingDirectory`, `User` y rutas en `deploy/systemd/oraculo-telegram.service`.
+3. Ejecutar una sola instancia del poller de Telegram por token (si levantas 2 procesos en polling, duplicarás respuestas).
+4. Instalar servicio:
+
+```bash
+sudo cp deploy/systemd/oraculo-telegram.service /etc/systemd/system/oraculo-telegram.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now oraculo-telegram.service
+```
+
+5. Ver estado y logs:
+
+```bash
+sudo systemctl status oraculo-telegram.service
+journalctl -u oraculo-telegram.service -f
+```
