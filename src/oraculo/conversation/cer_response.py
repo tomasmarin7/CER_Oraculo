@@ -40,6 +40,8 @@ LISTAR_ENSAYOS_PROMPT_FILE = "listar_ensayos.md"
 def build_cer_first_response_from_hits(
     *,
     question: str,
+    refined_query: str,
+    conversation_context: str,
     hits: list[dict[str, Any]],
     settings: Settings,
 ) -> tuple[str, str, list[dict[str, Any]]]:
@@ -58,65 +60,31 @@ def build_cer_first_response_from_hits(
 
     species_hints = detect_cer_entities(settings.cer_csv_path, question).get("especies", set())
     species_hints_norm = {normalize_text(s) for s in species_hints if normalize_text(s)}
-    filtered = offered_reports
-    if species_hints_norm:
-        species_matches = [
-            r for r in offered_reports
-            if normalize_text(str(r.get("especie") or "")) in species_hints_norm
-        ]
-        if species_matches:
-            filtered = species_matches
-        else:
-            csv_matches = _build_report_options_from_csv_species(settings, species_hints_norm)
-            if csv_matches:
-                filtered = csv_matches
-                offered_reports = csv_matches
-
-    requested_species = next((str(s).strip() for s in species_hints if str(s).strip()), "")
-    first_species = next(
-        (str(r.get("especie") or "").strip() for r in filtered if str(r.get("especie") or "").strip()), "",
-    )
-    problem_text = first_species or (question or "tu consulta").strip()
-
-    lines = [
-        (
-            f"• {r.get('producto') or 'N/D'} | {r.get('cliente') or 'N/D'} | "
-            f"{r.get('temporada') or 'N/D'} | {r.get('especie') or 'N/D'}"
-            + (
-                f" ({r.get('variedad')})"
-                if str(r.get("variedad") or "").strip() and str(r.get("variedad")).strip() != "N/D"
-                else ""
-            )
-        )
-        for r in filtered
-    ]
-    lines_block = "\n\n".join(lines)
-
     if species_hints_norm and not any(
         normalize_text(str(r.get("especie") or "")) in species_hints_norm for r in offered_reports
     ):
-        cross_problem = requested_species or (question or "tu consulta").strip()
-        text = (
-            f"Para {cross_problem} no tenemos ensayos CER directos, pero sí en otros cultivos:\n"
-            + lines_block
-            + "\n\n¿Sobre cuáles ensayos quieres que te detalle más?\n"
-            "Si ninguno te sirve, puedo buscar en nuestra base de datos de etiquetas productos "
-            "que indiquen ese problema en su etiqueta.\n"
-            "Si tampoco quieres revisar la base de datos de etiquetas, dime otro problema o cultivo "
-            "y hacemos una nueva búsqueda en ensayos CER."
-        )
-        return text, "cross_crop", filtered
+        csv_matches = _build_report_options_from_csv_species(settings, species_hints_norm)
+        if csv_matches:
+            offered_reports = _merge_report_options(csv_matches, offered_reports)
 
-    text = (
-        f"Encontré estos ensayos del CER para {problem_text}:\n"
-        + lines_block
-        + "\n\n¿Sobre cuáles ensayos quieres que te detalle más?\n"
-        "Si ninguno te sirve, puedo buscar productos en nuestra base de datos de etiquetas "
-        "que indiquen ese problema en su etiqueta.\n"
-        "Si tampoco quieres revisar la base de datos de etiquetas, dime otro problema o cultivo "
-        "y hacemos una nueva búsqueda en ensayos CER."
+    prompt = _build_listar_ensayos_prompt(
+        question=question,
+        refined_query=refined_query,
+        conversation_context=conversation_context,
+        report_options=offered_reports,
     )
-    return text, "direct", filtered
+    try:
+        text = (
+            generate_answer(prompt, settings, system_instruction="", profile="complex", require_complete=True) or ""
+        ).strip()
+    except Exception:
+        text = ""
+    if not text:
+        return _fallback_listing_text(question, offered_reports)
+
+    ordered_reports = _reorder_reports_from_listed_text(text, offered_reports)
+    scenario = _detect_listing_scenario(text)
+    return text, scenario, ordered_reports or offered_reports
 
 
 # ---------------------------------------------------------------------------
@@ -671,6 +639,153 @@ def _doc_id_candidates_from_pdf(pdf_value: Any) -> list[str]:
         seen.add(key)
         out.append(text)
     return out
+
+
+def _build_listar_ensayos_prompt(
+    *,
+    question: str,
+    refined_query: str,
+    conversation_context: str,
+    report_options: list[dict[str, Any]],
+) -> str:
+    template = load_prompt_template(LISTAR_ENSAYOS_PROMPT_FILE)
+    context_rows: list[str] = []
+    for i, report in enumerate(report_options, start=1):
+        context_rows.append(
+            (
+                f"INFORME {i}\n"
+                f"- producto: {report.get('producto') or 'N/D'}\n"
+                f"- cliente: {report.get('cliente') or 'N/D'}\n"
+                f"- temporada: {report.get('temporada') or 'N/D'}\n"
+                f"- cultivo: {report.get('especie') or 'N/D'}\n"
+                f"- variedad: {report.get('variedad') or 'N/D'}\n"
+                f"- doc_ids: {', '.join(_doc_ids_from_report(report)) or 'N/D'}"
+            )
+        )
+    context_block = "\n\n".join(context_rows) if context_rows else "SIN_CONTEXTO_CER"
+    question_block = (
+        f"{(question or '').strip()}\n\n"
+        f"CONTEXTO_CONVERSACION_RECIENTE:\n{(conversation_context or '').strip() or '(sin contexto)'}"
+    )
+    return (
+        template
+        .replace("{{question}}", question_block)
+        .replace("{{refined_query}}", (refined_query or "").strip())
+        .replace("{{context_block}}", context_block)
+    )
+
+
+def _reorder_reports_from_listed_text(
+    listed_text: str,
+    report_options: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if not listed_text or not report_options:
+        return report_options
+    lines = [line.strip() for line in listed_text.splitlines() if line.strip().startswith("• ")]
+    if not lines:
+        return report_options
+
+    matched: list[dict[str, Any]] = []
+    seen: set[int] = set()
+    for line in lines:
+        body = line.lstrip("•").strip()
+        parts = [p.strip() for p in body.split("|")]
+        if len(parts) < 4:
+            continue
+        product = normalize_text(parts[0])
+        client = normalize_text(parts[1])
+        season = normalize_text(parts[2])
+        species_text = parts[3]
+        species_part = species_text.split("(")[0].strip()
+        variety_part = ""
+        variety_match = re.search(r"\(([^)]+)\)", species_text)
+        if variety_match:
+            variety_part = variety_match.group(1).strip()
+        species = normalize_text(species_part)
+        variety = normalize_text(variety_part)
+
+        idx = _match_report_index(
+            report_options,
+            product=product,
+            client=client,
+            season=season,
+            species=species,
+            variety=variety,
+        )
+        if idx is None or idx in seen:
+            continue
+        seen.add(idx)
+        matched.append(report_options[idx])
+    if not matched:
+        return report_options
+    matched.extend(report_options[i] for i in range(len(report_options)) if i not in seen)
+    return matched
+
+
+def _match_report_index(
+    report_options: list[dict[str, Any]],
+    *,
+    product: str,
+    client: str,
+    season: str,
+    species: str,
+    variety: str,
+) -> int | None:
+    for idx, report in enumerate(report_options):
+        r_product = normalize_text(str(report.get("producto") or ""))
+        r_client = normalize_text(str(report.get("cliente") or ""))
+        r_season = normalize_text(str(report.get("temporada") or ""))
+        r_species = normalize_text(str(report.get("especie") or ""))
+        r_variety = normalize_text(str(report.get("variedad") or ""))
+        if product and product != r_product:
+            continue
+        if client and client != r_client:
+            continue
+        if season and season != r_season:
+            continue
+        if species and species != r_species:
+            continue
+        if variety and variety != r_variety:
+            continue
+        return idx
+    return None
+
+
+def _detect_listing_scenario(text: str) -> str:
+    normalized = normalize_text(text)
+    if "no se ha ensayado este caso en el cer" in normalized:
+        return "no_cer"
+    if "no tenemos ensayos cer directos" in normalized:
+        return "cross_crop"
+    return "direct"
+
+
+def _fallback_listing_text(
+    question: str,
+    report_options: list[dict[str, Any]],
+) -> tuple[str, str, list[dict[str, Any]]]:
+    lines = [
+        (
+            f"• {r.get('producto') or 'N/D'} | {r.get('cliente') or 'N/D'} | "
+            f"{r.get('temporada') or 'N/D'} | {r.get('especie') or 'N/D'}"
+            + (
+                f" ({r.get('variedad')})"
+                if str(r.get("variedad") or "").strip() and str(r.get("variedad")).strip() != "N/D"
+                else ""
+            )
+        )
+        for r in report_options
+    ]
+    text = (
+        f"Encontré estos ensayos del CER para {(question or 'tu consulta').strip()}:\n"
+        + "\n\n".join(lines)
+        + "\n\n¿Sobre cuáles ensayos quieres que te detalle más?\n"
+        "Si ninguno te sirve, puedo buscar productos en nuestra base de datos de etiquetas "
+        "que indiquen ese problema en su etiqueta.\n"
+        "Si tampoco quieres revisar la base de datos de etiquetas, dime otro problema o cultivo "
+        "y hacemos una nueva búsqueda en ensayos CER."
+    )
+    return text, "direct", report_options
 
 
 def _extract_species_and_season_from_label(label: str) -> tuple[str, str]:

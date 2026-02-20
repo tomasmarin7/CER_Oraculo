@@ -172,7 +172,11 @@ def _handle_problem_query(
         progress_callback("Estoy ordenando los ensayos encontrados para mostrártelos claro...")
 
     response_text, scenario, report_options = build_cer_first_response_from_hits(
-        question=question, hits=hits, settings=settings,
+        question=question,
+        refined_query=_refined_query,
+        conversation_context=render_recent_history(sesion, max_items=12),
+        hits=hits,
+        settings=settings,
     )
     logger.info("📝 Flujo CER | listado preparado.")
     sesion.flow_data["offered_reports"] = report_options

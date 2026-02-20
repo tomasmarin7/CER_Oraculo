@@ -91,7 +91,7 @@ def _token_roots(text: str) -> set[str]:
         if tok in STOPWORDS:
             continue
         root = _token_root(tok)
-        if len(root) >= 4:
+        if len(root) >= 3:
             roots.add(root)
     return roots
 
@@ -102,14 +102,30 @@ def _contains_with_plural_support(haystack: str, needle: str) -> bool:
     if not h or not n:
         return False
     if len(n) <= 3:
-        if re.search(rf"\b{re.escape(n)}\b", h):
-            return True
+        variants = {n}
         n_s = _singular(n)
-        return bool(n_s and re.search(rf"\b{re.escape(n_s)}\b", h))
+        if n_s:
+            variants.add(n_s)
+        variants.add(f"{n}s")
+        variants.add(f"{n}es")
+        return any(re.search(rf"\b{re.escape(v)}\b", h) for v in variants if v)
     if n in h:
         return True
     n_s = _singular(n)
-    return bool(n_s and n_s in h)
+    if n_s and n_s in h:
+        return True
+
+    # Soporte para entidades multi-palabra (ej. "uva de mesa")
+    # cuando el usuario menciona solo un token relevante (ej. "uvas").
+    if " " in n:
+        for token in _tokenize(n):
+            if token in STOPWORDS:
+                continue
+            if len(token) < 3:
+                continue
+            if _contains_with_plural_support(h, token):
+                return True
+    return False
 
 
 @lru_cache(maxsize=2)
@@ -260,6 +276,11 @@ def detect_cer_entities(csv_path: str, text: str) -> dict[str, set[str]]:
         if not especie_norm:
             continue
         if _contains_with_plural_support(norm_text, especie_norm):
+            signals["especies"].add(especie_norm)
+            continue
+        # Fallback por token relevante de especie (ej. "uvas" -> "uva de mesa").
+        specie_tokens = [tok for tok in _tokenize(especie_norm) if tok not in STOPWORDS and len(tok) >= 3]
+        if specie_tokens and any(_contains_with_plural_support(norm_text, tok) for tok in specie_tokens):
             signals["especies"].add(especie_norm)
             continue
         especie_roots = _token_roots(especie_norm)
