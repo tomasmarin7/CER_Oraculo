@@ -67,6 +67,8 @@ def build_cer_first_response_from_hits(
         if csv_matches:
             offered_reports = _merge_report_options(csv_matches, offered_reports)
 
+    _annotate_inclusion_logic(offered_reports, species_hints_norm=species_hints_norm)
+
     prompt = _build_listar_ensayos_prompt(
         question=question,
         refined_query=refined_query,
@@ -82,6 +84,7 @@ def build_cer_first_response_from_hits(
     if not text:
         return _fallback_listing_text(question, offered_reports)
 
+    text = _inject_cross_crop_explanation(text, offered_reports)
     ordered_reports = _reorder_reports_from_listed_text(text, offered_reports)
     scenario = _detect_listing_scenario(text)
     return text, scenario, ordered_reports or offered_reports
@@ -465,6 +468,7 @@ def _build_report_options_from_hits(
             "label": label, "products": [producto], "doc_ids": [doc_id] if doc_id else [],
             "producto": producto, "cliente": cliente, "temporada": temporada,
             "especie": especie, "variedad": variedad,
+            "source": "rag",
         })
 
     # Deduplicar
@@ -546,6 +550,7 @@ def _build_report_options_from_csv_query(
             "temporada": temporada,
             "especie": especie,
             "variedad": variedad,
+            "source": "csv_query",
         })
     return options
 
@@ -594,6 +599,7 @@ def _build_report_options_from_csv_species(
             "temporada": temporada,
             "especie": especie,
             "variedad": variedad,
+            "source": "csv_species",
         })
         if len(options) >= max(1, int(limit)):
             break
@@ -785,6 +791,7 @@ def _fallback_listing_text(
         "Si tampoco quieres revisar la base de datos de etiquetas, dime otro problema o cultivo "
         "y hacemos una nueva búsqueda en ensayos CER."
     )
+    text = _inject_cross_crop_explanation(text, report_options)
     return text, "direct", report_options
 
 
@@ -805,6 +812,86 @@ def _limpiar_producto_en_item(text: str) -> str:
     value = str(text or "").strip()
     value = re.sub(r"\(en\s+[^)]+\)", "", value, flags=re.IGNORECASE).strip()
     return re.sub(r"\s+", " ", value)
+
+
+def _annotate_inclusion_logic(
+    report_options: list[dict[str, Any]],
+    *,
+    species_hints_norm: set[str],
+) -> None:
+    if not report_options:
+        return
+
+    for report in report_options:
+        source = normalize_text(str(report.get("source") or "")) or "unknown"
+        species_norm = normalize_text(str(report.get("especie") or ""))
+        has_crop_hint = bool(species_hints_norm)
+        is_direct_crop = bool(has_crop_hint and species_norm and species_norm in species_hints_norm)
+
+        if is_direct_crop:
+            report["match_scope"] = "direct_crop"
+            if source == "csv_species":
+                report["inclusion_reason"] = "Coincide con el cultivo consultado (validado contra CER.csv)."
+            elif source == "csv_query":
+                report["inclusion_reason"] = "Coincide con cultivo y términos de la consulta."
+            elif source == "rag":
+                report["inclusion_reason"] = "Coincide con el cultivo consultado y fue recuperado por similitud técnica."
+            else:
+                report["inclusion_reason"] = "Coincide con el cultivo consultado."
+            continue
+
+        if has_crop_hint:
+            report["match_scope"] = "cross_crop"
+            if source == "rag":
+                report["inclusion_reason"] = (
+                    "Incluido como referencia en otro cultivo por similitud técnica con el problema consultado."
+                )
+            else:
+                report["inclusion_reason"] = (
+                    "Incluido como referencia en otro cultivo por coincidencia con los términos de la consulta."
+                )
+            continue
+
+        report["match_scope"] = "query_match"
+        if source == "rag":
+            report["inclusion_reason"] = "Coincidencia semántica con la consulta técnica."
+        elif source == "csv_query":
+            report["inclusion_reason"] = "Coincidencia por términos de consulta en CER.csv."
+        elif source == "csv_species":
+            report["inclusion_reason"] = "Coincidencia por especie detectada en el contexto."
+        else:
+            report["inclusion_reason"] = "Coincide con la consulta."
+
+
+def _inject_cross_crop_explanation(
+    text: str,
+    report_options: list[dict[str, Any]],
+) -> str:
+    if not text or not report_options:
+        return text
+
+    cross_crop_items = [r for r in report_options if str(r.get("match_scope") or "") == "cross_crop"]
+    direct_items = [r for r in report_options if str(r.get("match_scope") or "") == "direct_crop"]
+    if not cross_crop_items or not direct_items:
+        return text
+
+    cross_crops: list[str] = []
+    for item in cross_crop_items:
+        especie = _display_value(item.get("especie"))
+        if especie != "N/D" and especie not in cross_crops:
+            cross_crops.append(especie)
+    crops_txt = ", ".join(cross_crops) if cross_crops else "otros cultivos"
+
+    note = (
+        "Nota: además incluí algunos ensayos de "
+        f"{crops_txt} como referencia técnica, porque comparten el problema consultado, "
+        "aunque el cultivo principal de tu búsqueda se priorizó en la lista."
+    )
+
+    marker = "¿Sobre cuáles ensayos quieres que te detalle más?"
+    if marker in text:
+        return text.replace(marker, f"{note}\n\n{marker}", 1)
+    return f"{text}\n\n{note}"
 
 
 # ---------------------------------------------------------------------------

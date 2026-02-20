@@ -180,7 +180,9 @@ def _handle_problem_query(
     )
     logger.info("📝 Flujo CER | listado preparado.")
     sesion.flow_data["offered_reports"] = report_options
-    sesion.flow_data["last_cer_router_context"] = render_report_options(report_options) if report_options else ""
+    sesion.flow_data["last_cer_router_context"] = (
+        render_report_options(report_options, include_inclusion_reason=True) if report_options else ""
+    )
 
     if report_options:
         sesion.estado = EstadoSesion.ESPERANDO_DETALLE_PRODUCTO
@@ -363,7 +365,10 @@ def _build_contextual_chat_reply(
 ) -> str:
     history = render_recent_history(sesion, max_items=24)
     offered_reports = sesion.flow_data.get("offered_reports") or []
-    cer_context = render_report_options(offered_reports) if offered_reports else "sin lista CER activa"
+    cer_context = (
+        render_report_options(offered_reports, include_inclusion_reason=True)
+        if offered_reports else "sin lista CER activa"
+    )
     sag_context = str(sesion.flow_data.get("last_sag_router_context") or "").strip() or "sin contexto SAG reciente"
 
     prompt = (

@@ -16,7 +16,10 @@ def build_detail_followup_prompt(
     context_block: str,
 ) -> str:
     template = _load_prompt_template(GUIDED_DETAIL_FOLLOWUP_PROMPT_FILE)
-    options_block = render_report_options(offered_reports) or "• Sin opciones detectadas"
+    options_block = (
+        render_report_options(offered_reports, include_inclusion_reason=True)
+        or "• Sin opciones detectadas"
+    )
     return (
         template.replace("{{last_question}}", last_question or "sin pregunta")
         .replace("{{last_assistant_message}}", last_assistant_message or "sin mensaje")
@@ -35,7 +38,10 @@ def build_followup_chat_prompt(
     context_block: str,
 ) -> str:
     template = _load_prompt_template(GUIDED_CHAT_FOLLOWUP_PROMPT_FILE)
-    options_block = render_report_options(offered_reports) or "• Sin opciones detectadas"
+    options_block = (
+        render_report_options(offered_reports, include_inclusion_reason=True)
+        or "• Sin opciones detectadas"
+    )
     return (
         template.replace("{{last_question}}", last_question or "sin pregunta")
         .replace("{{last_assistant_message}}", last_assistant_message or "sin mensaje")
@@ -45,17 +51,25 @@ def build_followup_chat_prompt(
     ).strip()
 
 
-def render_report_options(report_options: list[dict[str, Any]]) -> str:
+def render_report_options(
+    report_options: list[dict[str, Any]],
+    *,
+    include_inclusion_reason: bool = False,
+) -> str:
     lines: list[str] = []
     for option in report_options:
         label = str(option.get("label") or "").strip()
         products = [str(p).strip() for p in (option.get("products") or []) if str(p).strip()]
+        reason = str(option.get("inclusion_reason") or "").strip()
         if not label:
             continue
         if products:
-            lines.append(f"• {label}: {', '.join(products)}")
+            line = f"• {label}: {', '.join(products)}"
         else:
-            lines.append(f"• {label}")
+            line = f"• {label}"
+        if include_inclusion_reason and reason:
+            line = f"{line} | criterio={reason}"
+        lines.append(line)
     return "\n".join(lines)
 
 
