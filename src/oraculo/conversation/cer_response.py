@@ -68,12 +68,20 @@ def build_cer_first_response_from_hits(
             offered_reports = _merge_report_options(csv_matches, offered_reports)
 
     _annotate_inclusion_logic(offered_reports, species_hints_norm=species_hints_norm)
+    direct_crop_reports = [r for r in offered_reports if str(r.get("match_scope") or "") == "direct_crop"]
+    cross_crop_reports = [r for r in offered_reports if str(r.get("match_scope") or "") == "cross_crop"]
+
+    # Si no hay evidencia directa para el cultivo pedido, pero sí evidencia en otros cultivos,
+    # guiamos al LLM con solo opciones cross-crop para forzar CASO B sin hardcodear texto.
+    prompt_reports = offered_reports
+    if species_hints_norm and not direct_crop_reports and cross_crop_reports:
+        prompt_reports = cross_crop_reports
 
     prompt = _build_listar_ensayos_prompt(
         question=question,
         refined_query=refined_query,
         conversation_context=conversation_context,
-        report_options=offered_reports,
+        report_options=prompt_reports,
     )
     try:
         text = (
@@ -82,12 +90,11 @@ def build_cer_first_response_from_hits(
     except Exception:
         text = ""
     if not text:
-        return _fallback_listing_text(question, offered_reports)
+        return _fallback_listing_text(question, prompt_reports)
 
-    text = _inject_cross_crop_explanation(text, offered_reports)
-    ordered_reports = _reorder_reports_from_listed_text(text, offered_reports)
+    ordered_reports = _reorder_reports_from_listed_text(text, prompt_reports)
     scenario = _detect_listing_scenario(text)
-    return text, scenario, ordered_reports or offered_reports
+    return text, scenario, ordered_reports or prompt_reports
 
 
 # ---------------------------------------------------------------------------
@@ -665,6 +672,8 @@ def _build_listar_ensayos_prompt(
                 f"- temporada: {report.get('temporada') or 'N/D'}\n"
                 f"- cultivo: {report.get('especie') or 'N/D'}\n"
                 f"- variedad: {report.get('variedad') or 'N/D'}\n"
+                f"- match_scope: {report.get('match_scope') or 'query_match'}\n"
+                f"- inclusion_reason: {report.get('inclusion_reason') or 'N/D'}\n"
                 f"- doc_ids: {', '.join(_doc_ids_from_report(report)) or 'N/D'}"
             )
         )
@@ -791,7 +800,6 @@ def _fallback_listing_text(
         "Si tampoco quieres revisar la base de datos de etiquetas, dime otro problema o cultivo "
         "y hacemos una nueva búsqueda en ensayos CER."
     )
-    text = _inject_cross_crop_explanation(text, report_options)
     return text, "direct", report_options
 
 
@@ -862,36 +870,6 @@ def _annotate_inclusion_logic(
         else:
             report["inclusion_reason"] = "Coincide con la consulta."
 
-
-def _inject_cross_crop_explanation(
-    text: str,
-    report_options: list[dict[str, Any]],
-) -> str:
-    if not text or not report_options:
-        return text
-
-    cross_crop_items = [r for r in report_options if str(r.get("match_scope") or "") == "cross_crop"]
-    direct_items = [r for r in report_options if str(r.get("match_scope") or "") == "direct_crop"]
-    if not cross_crop_items or not direct_items:
-        return text
-
-    cross_crops: list[str] = []
-    for item in cross_crop_items:
-        especie = _display_value(item.get("especie"))
-        if especie != "N/D" and especie not in cross_crops:
-            cross_crops.append(especie)
-    crops_txt = ", ".join(cross_crops) if cross_crops else "otros cultivos"
-
-    note = (
-        "Nota: además incluí algunos ensayos de "
-        f"{crops_txt} como referencia técnica, porque comparten el problema consultado, "
-        "aunque el cultivo principal de tu búsqueda se priorizó en la lista."
-    )
-
-    marker = "¿Sobre cuáles ensayos quieres que te detalle más?"
-    if marker in text:
-        return text.replace(marker, f"{note}\n\n{marker}", 1)
-    return f"{text}\n\n{note}"
 
 
 # ---------------------------------------------------------------------------

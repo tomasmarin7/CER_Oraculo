@@ -24,7 +24,7 @@ Si tampoco quieres revisar la base de datos de etiquetas, dime otro problema o c
 
 CASO B (no hay evidencia directa en ese cultivo, pero sí para el problema en otros cultivos):
 Primera linea exacta:
-Para [problema] en [cultivo] no tenemos ensayos CER directos, pero sí en otros cultivos:
+Para [problema] en [cultivo] no tenemos ensayos CER directos, pero sí en [cultivo_1], [cultivo_2], [cultivo_3]:
 Luego lista con ESTE orden de campos (sin "Ensayo N"), formato simple:
 • [producto] | [cliente] | [temporada] | [cultivo]
 
@@ -45,9 +45,13 @@ Si prefieres no revisar la base de datos de etiquetas, dime otra consulta y busc
 Notas de decision:
 - Si el usuario pregunta por un producto especifico y no aparece evidencia CER para ese producto, usa CASO C.
 - Si aparece evidencia CER util, prioriza CASO A o B.
+- Usa `match_scope` de cada INFORME para decidir:
+  - si TODOS son `cross_crop` y no hay `direct_crop` => CASO B.
+  - si hay al menos uno `direct_crop` => CASO A.
 - Usa siempre el campo `cliente` del contexto para la empresa. No escribas "No especificada".
 - Si un valor realmente no existe en el contexto, usa "N/D".
 - No incluyas prefijos de etiqueta como "Producto:", "Química/Empresa:", "Año:", "Cultivo:".
+- En CASO B, en la primera linea menciona explicitamente los cultivos alternativos reales presentes en la lista (sin inventar).
 
 PREGUNTA ORIGINAL:
 {{question}}
