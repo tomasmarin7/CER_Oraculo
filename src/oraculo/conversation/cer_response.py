@@ -63,6 +63,11 @@ def build_cer_first_response_from_hits(
         ]
         if species_matches:
             filtered = species_matches
+        else:
+            csv_matches = _build_report_options_from_csv_species(settings, species_hints_norm)
+            if csv_matches:
+                filtered = csv_matches
+                offered_reports = csv_matches
 
     requested_species = next((str(s).strip() for s in species_hints if str(s).strip()), "")
     first_species = next(
@@ -490,6 +495,57 @@ def _build_report_options_from_hits(
             seen_keys.add(key)
             unique.append(opt)
     return unique
+
+
+def _build_report_options_from_csv_species(
+    settings: Settings,
+    species_hints_norm: set[str],
+    limit: int = 8,
+) -> list[dict[str, Any]]:
+    if not species_hints_norm:
+        return []
+
+    index = load_cer_index(settings.cer_csv_path)
+    options: list[dict[str, Any]] = []
+    seen_keys: set[tuple[str, str, str, str, str]] = set()
+
+    for rec in index.records:
+        especie_norm = normalize_text(rec.especie)
+        if not especie_norm or especie_norm not in species_hints_norm:
+            continue
+
+        key = (
+            normalize_text(rec.producto),
+            normalize_text(rec.cliente),
+            normalize_text(rec.temporada),
+            especie_norm,
+            normalize_text(rec.variedad),
+        )
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+
+        producto = rec.producto or "N/D"
+        cliente = rec.cliente or "N/D"
+        temporada = rec.temporada or "N/D"
+        especie = rec.especie or "N/D"
+        variedad = rec.variedad or "N/D"
+        label = f"{producto} ({especie}, {variedad}, {temporada})"
+
+        options.append({
+            "label": label,
+            "products": [producto],
+            "doc_ids": [rec.pdf] if rec.pdf else [],
+            "producto": producto,
+            "cliente": cliente,
+            "temporada": temporada,
+            "especie": especie,
+            "variedad": variedad,
+        })
+        if len(options) >= max(1, int(limit)):
+            break
+
+    return options
 
 
 def _extract_species_and_season_from_label(label: str) -> tuple[str, str]:

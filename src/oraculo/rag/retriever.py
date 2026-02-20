@@ -102,7 +102,10 @@ def retrieve(
 
     # 3) Búsqueda vectorial en Qdrant (con filtro opcional por metadata CER).
     qdrant = get_qdrant_client(settings)
-    query_filter = _build_cer_query_filter((enhancement.csv_signals if enhancement else {}))
+    query_filter = _build_cer_query_filter(
+        csv_signals=(enhancement.csv_signals if enhancement else {}),
+        csv_pdf_filenames=(enhancement.csv_pdf_filenames if enhancement else set()),
+    )
     effective_top_k = max(1, int(top_k))
     if enhancement and enhancement.exhaustive_hint and enhancement.matched_records_count > effective_top_k:
         effective_top_k = min(max(effective_top_k * 2, 12), 20)
@@ -149,8 +152,12 @@ def retrieve(
     return rewritten_query, hits
 
 
-def _build_cer_query_filter(csv_signals: dict[str, set[str]]) -> qm.Filter | None:
-    if not csv_signals:
+def _build_cer_query_filter(
+    *,
+    csv_signals: dict[str, set[str]],
+    csv_pdf_filenames: set[str],
+) -> qm.Filter | None:
+    if not csv_signals and not csv_pdf_filenames:
         return None
 
     should: list[Any] = []
@@ -182,6 +189,12 @@ def _build_cer_query_filter(csv_signals: dict[str, set[str]]) -> qm.Filter | Non
         should.extend(
             qm.FieldCondition(key="cliente", match=qm.MatchValue(value=variant))
             for value in clientes
+            for variant in _payload_value_variants(value)
+        )
+    if csv_pdf_filenames:
+        should.extend(
+            qm.FieldCondition(key="pdf_filename", match=qm.MatchValue(value=variant))
+            for value in sorted(str(v).strip() for v in csv_pdf_filenames if str(v).strip())[:100]
             for variant in _payload_value_variants(value)
         )
 
@@ -558,4 +571,3 @@ def retrieve_sag_all_rows(
         int((time.perf_counter() - started) * 1000),
     )
     return rows
-

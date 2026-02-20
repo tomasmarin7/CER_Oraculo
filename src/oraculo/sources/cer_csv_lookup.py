@@ -78,11 +78,34 @@ def _singular(token: str) -> str:
     return tok
 
 
+def _token_root(token: str) -> str:
+    tok = _singular(token.strip())
+    if len(tok) >= 5 and tok.endswith(("a", "o")):
+        tok = tok[:-1]
+    return tok
+
+
+def _token_roots(text: str) -> set[str]:
+    roots: set[str] = set()
+    for tok in _tokenize(text):
+        if tok in STOPWORDS:
+            continue
+        root = _token_root(tok)
+        if len(root) >= 4:
+            roots.add(root)
+    return roots
+
+
 def _contains_with_plural_support(haystack: str, needle: str) -> bool:
     h = _normalize(haystack)
     n = _normalize(needle)
     if not h or not n:
         return False
+    if len(n) <= 3:
+        if re.search(rf"\b{re.escape(n)}\b", h):
+            return True
+        n_s = _singular(n)
+        return bool(n_s and re.search(rf"\b{re.escape(n_s)}\b", h))
     if n in h:
         return True
     n_s = _singular(n)
@@ -148,8 +171,10 @@ def find_cer_records_by_query(csv_path: str, query_text: str, limit: int = 40) -
     if not query_norm:
         return []
     query_tokens = [tok for tok in _tokenize(query_norm) if tok not in STOPWORDS]
+    query_roots = _token_roots(query_norm)
     if not query_tokens:
-        return []
+        if not query_roots:
+            return []
 
     index = load_cer_index(csv_path)
     ranked: list[tuple[int, CerCsvRecord]] = []
@@ -160,10 +185,16 @@ def find_cer_records_by_query(csv_path: str, query_text: str, limit: int = 40) -
             continue
 
         overlap = sum(1 for tok in query_tokens if tok in text)
-        if overlap <= 0:
+        especie_root_overlap = 0
+        if rec.especie and query_roots:
+            especie_roots = _token_roots(rec.especie)
+            especie_root_overlap = len(query_roots & especie_roots)
+        if overlap <= 0 and especie_root_overlap <= 0:
             continue
 
         score = overlap * 6
+        if especie_root_overlap:
+            score += min(especie_root_overlap * 10, 20)
         if rec.especie and _contains_with_plural_support(query_norm, rec.especie):
             score += 14
         if rec.producto and _contains_with_plural_support(query_norm, rec.producto):
@@ -221,9 +252,28 @@ def detect_cer_entities(csv_path: str, text: str) -> dict[str, set[str]]:
     if not norm_text:
         return signals
 
+    index = load_cer_index(csv_path)
+    query_roots = _token_roots(norm_text)
+
+    # Detección por especie en texto directo (incluye variantes como ciruela/ciruelo).
+    for especie_norm in index.especies:
+        if not especie_norm:
+            continue
+        if _contains_with_plural_support(norm_text, especie_norm):
+            signals["especies"].add(especie_norm)
+            continue
+        especie_roots = _token_roots(especie_norm)
+        if query_roots and especie_roots and (query_roots & especie_roots):
+            signals["especies"].add(especie_norm)
+
     for rec in find_cer_records_by_query(csv_path, norm_text, limit=80):
         if rec.especie:
-            signals["especies"].add(rec.especie)
+            especie_norm = _normalize(rec.especie)
+            especie_roots = _token_roots(especie_norm)
+            if _contains_with_plural_support(norm_text, especie_norm) or (
+                query_roots and especie_roots and (query_roots & especie_roots)
+            ):
+                signals["especies"].add(especie_norm)
         if rec.producto:
             signals["productos"].add(rec.producto)
         if rec.variedad:

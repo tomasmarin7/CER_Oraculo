@@ -28,6 +28,7 @@ class CerQueryEnhancement:
     enhanced_query: str
     matched_records_count: int
     csv_signals: dict[str, set[str]]
+    csv_pdf_filenames: set[str]
     exhaustive_hint: bool
 
 
@@ -99,12 +100,17 @@ def enhance_cer_query(
     started = time.perf_counter()
     base_query = (user_message or "").strip()
     if not base_query:
-        return CerQueryEnhancement("", 0, {}, False)
+        return CerQueryEnhancement("", 0, {}, set(), False)
 
     combined_text = " ".join(part for part in [base_query, conversation_context] if str(part).strip())
     csv_hints = build_cer_csv_hints_block(settings.cer_csv_path, combined_text, limit=12)
     matched_records = find_cer_records_by_query(settings.cer_csv_path, combined_text, limit=60)
     csv_signals = detect_cer_entities(settings.cer_csv_path, combined_text)
+    csv_pdf_filenames = {
+        str(rec.pdf or "").strip()
+        for rec in matched_records
+        if str(rec.pdf or "").strip()
+    }
     exhaustive_hint = _is_exhaustive_intent(combined_text)
 
     client = genai.Client(
@@ -148,6 +154,7 @@ def enhance_cer_query(
                 enhanced_query=enhanced,
                 matched_records_count=len(matched_records),
                 csv_signals=csv_signals,
+                csv_pdf_filenames=csv_pdf_filenames,
                 exhaustive_hint=exhaustive_hint,
             )
         except Exception as exc:
@@ -168,5 +175,6 @@ def enhance_cer_query(
         enhanced_query=fallback,
         matched_records_count=len(matched_records),
         csv_signals=csv_signals,
+        csv_pdf_filenames=csv_pdf_filenames,
         exhaustive_hint=exhaustive_hint,
     )
